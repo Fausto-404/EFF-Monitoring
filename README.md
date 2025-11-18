@@ -1,13 +1,32 @@
 # EFF-Monitoring 安全告警处理系统
 
-安全监测人员的效能提升神器，一款基于 PySide6 开发的安全告警处理工具，围绕“高效日志处理、快捷辅助研判 ”为安全监测人员的工作进行减负增效。
+EFF-Monitoring（Efficient Monitoring，高效监控），是一款面向安全运营 / 蓝队的本地告警处理工具，聚焦“高效日志处理 + 自动化情报补全 + AI 研判”，帮助安全监测人员在攻防演练和日常值班中快速看懂告警、打通上下游。
+
+## 核心价值
+
+- **把“堆满终端的原始日志”变成“结构化视图”**  
+  一次性解析出安全监测人员进行事件记录的所有字段（包括手动添加和日志识别），并自动生成可复制到聊天工具/Excel 的两种格式。
+
+- **把威胁分析的动作收敛到一屏**  
+  集成微步 ThreatBook，对源/目的 IP 统一查询，自动聚合情报并以“总体概览 + 详细分区”的方式呈现。
+
+- **把“分析研判”交给 AI，自己专注于决策**  
+  基于 CO-STAR 提示词，将解析结果 + 请求/响应 + TI 结果拼成上下文，一键生成结构化研判结论；支持单条告警和多条告警（按历史记录批量研判）两种模式。
+
+- **把“重复劳动”沉到规则和配置里**  
+  通过 GUI 配置规则、字段顺序、静态字段、消息模板等，把经验固化为规则；后续只需粘日志、点按钮，大量日常工作变成“确认而不是重做”。
+
+- **赋能初级研判人员，小白秒入门**  
+  威胁情报分析、AI辅助分析、白名单黑名单匹配从技术层面解决了初级监测人员看不懂告警、弄不清威胁、易封错ip的问题。
+
+- **把“信息碎片”汇成可复盘的历史**  
+  对每次解析结果及 TI / AI 输出做持久化，支持导出 CSV、批量 AI 复盘，为演练复盘/报告撰写提供原始素材。
 
 ## 功能特性
 
 ### 1. 日志处理 📋
 - 支持通过「规则管理」页面自定义正则规则，解析安全设备告警日志。
 - 内置基础 KV 解析（分号、制表符、换行等），兼容非结构化文本。
-- 提取 6 个必填字段：`src_ip`、`dst_ip`、`event_type`、`request`、`response`、`payload`。
 - 解析结果同时以「消息格式」和「Excel 格式」展示，方便复制到聊天工具或表格。
 <img width="1191" height="819" alt="image" src="https://github.com/user-attachments/assets/9ebdb7ef-9144-4957-9c09-428933486ba1" />
 
@@ -16,16 +35,14 @@
 - 集成微步 ThreatBook：
   - **API 请求模式**：使用官方 `ip_reputation` 接口。
   - **HTTP 请求模式**：使用浏览器 Cookie 访问 `https://x.threatbook.com/v5/ip/<ip>` 页面（适合 API 配额紧张场景）。
-- 根据配置对源 IP / 目的 IP 分别查询，结果统一渲染为：
-  - 顶部「总体概览」。
-  - 下方「源 IP 威胁情报」和「目的 IP 威胁情报」分区。
+- 根据配置对源 IP / 目的 IP 分别查询，结果统一渲染。
 <img width="1195" height="822" alt="image" src="https://github.com/user-attachments/assets/c407987b-dd6d-4e83-a7a3-45d19cafb79f" />
 
 ### 3. AI 研判 🤖
-- 使用 SiliconFlow 的 Chat Completions 接口（默认 DeepSeek 模型）。
+- 使用 SiliconFlow 的 Chat Completions 接口。
 - 采用 CO-STAR 风格提示词，将：
-  - 日志解析结果（含 6 个必填字段），
-  - 请求 / 响应载荷，
+  - 日志解析结果，
+  - 请求/响应/载荷，
   - 威胁情报结果
   组合成上下文，自动生成结构化研判结论。
 - 支持配置：
@@ -38,12 +55,11 @@
 - 图形界面管理白名单 / 黑名单：
   - 支持单 IP、CIDR、范围、简写范围（例如 `192.168.1.1-100`）。
 - 日志处理时自动检查源 / 目的 IP 是否在白 / 黑名单，并弹出提醒。
-- 提供脚本将文本名单迁移到 SQLite 数据库（`scripts/migrate_ip_lists.py`）。
 <img width="1190" height="819" alt="image" src="https://github.com/user-attachments/assets/54c6a75c-7c0f-4fb7-ac94-84fe1b3e73de" />
 
 ### 5. 消息推送 📤
 - 将格式化后的告警结果发送到：
-  - 钉钉（支持签名鉴权）
+  - 钉钉
   - 企业微信
   - 飞书
 - 支持同时向多个渠道发送，界面中可以查看发送结果提示。
@@ -52,8 +68,6 @@
 ### 6. 规则与配置管理 ⚙️
 - **规则管理**（RulePage）：
   - 以表格形式管理字段规则（字段 / 匹配方式 / 正则或固定值）。
-  - 6 个必填字段固定置顶并高亮，且至少保留一条规则。
-  - 编辑统一通过弹窗进行，避免误改必填字段。
 <img width="1193" height="817" alt="image" src="https://github.com/user-attachments/assets/105727f5-2890-4356-a755-4bf7b1eb97f4" />
 
 - **配置管理**（ConfigPage）：
@@ -116,14 +130,16 @@ python run.py
 ```
 
 首次启动会自动生成默认的 `config.json`、白名单 / 黑名单文件等。
+编译版本直接双击运行即可
 
 ## 快速上手
 
-### 示例：处理 Web 告警日志并做 TI + AI 研判
+### 示例：处理告警日志并做 TI + AI 研判
+1.配置字段顺序（若配置字段位于规则管理中，则生效为规则管理中的键值对，反之则当成文本处理）
+<img width="1187" height="817" alt="image" src="https://github.com/user-attachments/assets/c24bf3a1-9402-496c-b4a8-a59eb774adbd" />
 
-1. 打开 **日志处理** 页面。
-2. 将原始告警日志粘贴到左侧输入框，例如：
-
+2. 打开 **日志处理** 页面。
+3. 将原始告警日志粘贴（`Ctrl+A` 全选复制即可）到左侧输入框，例如：
    ```text
    源IP: 172.21.112.184
    目的IP: 172.16.1.80
@@ -132,15 +148,15 @@ python run.py
    响应内容: HTTP/1.1 403 Forbidden
    ```
 
-3. 点击 **处理日志**：
+4. 点击 **处理日志**：
    - 使用当前规则解析日志，提取必填字段及其它字段。
    - 若源 / 目的 IP 命中白 / 黑名单，会弹出提示。
-   - 右侧展示「消息格式」和「Excel 格式」两种输出。
-4. 点击 **告警研判**：
+   - 下方展示「消息格式」和「Excel 格式」两种输出。
+5. 点击 **告警研判**：
    - 根据配置选择是否对源 / 目的 IP 查询 ThreatBook。
    - 在「威胁情报」标签页查看总体概览和详细情报。
    - 在「AI 研判结果」标签页查看 AI 给出的结构化结论。
-5. 若需推送到群聊，点击 **发送到群聊**，在「配置管理 → 消息推送」中预先填好钉钉 / 企业微信 / 飞书的 Webhook 即可。
+6. 若需推送到群聊，点击 **发送到群聊**，在「配置管理 → 消息推送」中预先填好钉钉 / 企业微信 / 飞书的 Webhook 即可。
 
 ### IP 管理
 
@@ -163,97 +179,7 @@ python run.py
    - 查询模式：选择查询源 IP、目的 IP，或两者。
    - 使用「测试查询」按钮验证配置是否有效（HTTP 模式下若返回空结果，会弹出可点击链接提醒，可在浏览器手动校验是否触发机器人验证）。
 3. 在「AI 配置」标签页：
-   - 启用 AI，并填写模型名称、API Key、Base URL。
+   - 填写模型名称、API Key、Base URL。
    - 配置分析目标（Objective）、受众（Audience）和输出模式（Response Mode）。
 4. 在「消息推送」标签页配置钉钉 / 企业微信 / 飞书 Webhook。
 5. 在「解析配置」标签页调整字段顺序、历史记录最大条数等。
-
-## 配置文件结构概览
-
-`core/config.py` 中的 `get_default_config()` 定义了默认配置结构，典型形态如下（部分字段简化展示）：
-
-```jsonc
-{
-  "regex": {
-    "five_tuple": {
-      "src_ip": "[\\d.]+|[\\da-fA-F:]+",
-      "dst_ip_port": "[\\d.]+(?::\\d+)?|[\\da-fA-F:]+(?::\\d+)?",
-      "protocol": "TCP|UDP|ICMP|HTTP|HTTPS"
-    },
-    "extra_fields": {}
-  },
-  "providers": {
-    "threatbook": {
-      "enabled": false,
-      "api_key": "",
-      "mode": "both",          // both | src | dst
-      "request_mode": "api",   // off | api | http
-      "http_cookie": ""
-    }
-  },
-  "ai": {
-    "enabled": false,
-    "model": "deepseek-ai/DeepSeek-V2",
-    "api_key": "",
-    "base_url": "https://api.siliconflow.cn",
-    "objective": "对该告警进行专业安全威胁研判...",
-    "audience": "expert",          // customer | expert | beginner
-    "response_mode": "structured"  // structured | brief | report
-  },
-  "webhook": {
-    "dingtalk": { "enabled": false, "url": "", "secret": "" },
-    "wecom":    { "enabled": false, "url": "" },
-    "feishu":   { "enabled": false, "url": "" }
-  },
-  "fields": {
-    "order": [
-      "src_ip", "dst_ip", "event_name",
-      "alert_device", "analyst", "alert_id",
-      "compromised", "event_type", "suggestion"
-    ],
-    "auto_append_extra": false
-  },
-  "lists": {
-    "whitelist_path": "lists/whitelist.txt",
-    "blocked_path":   "lists/blocked.txt",
-    "whitelist_skip_ti": true
-  },
-  "static_fields": {},
-  "manual_fields": [
-    { "key": "alert_device", "label": "告警设备", "type": "text" },
-    { "key": "analyst",      "label": "研判人员", "type": "text" },
-    { "key": "alert_id",     "label": "告警编号", "type": "text" },
-    { "key": "compromised",  "label": "是否失陷", "type": "select", "options": ["否", "是"] },
-    { "key": "event_type",   "label": "事件类型", "type": "text" },
-    { "key": "suggestion",   "label": "处置建议", "type": "textarea" }
-  ],
-  "field_labels": {
-    "src_ip": "源IP",
-    "dst_ip": "目的IP",
-    "event_name": "事件名称",
-    "alert_device": "告警设备",
-    "analyst": "研判人员",
-    "alert_id": "告警编号",
-    "compromised": "是否失陷",
-    "event_type": "事件类型",
-    "suggestion": "处置建议"
-  },
-  "history": {
-    "enabled": true,
-    "max_entries": 200,
-    "file": "output/log_history.json"
-  }
-}
-```
-
-## 关键模块一览
-
-- `core/config.py`：配置文件的生成、加载与保存（`ensure_config`, `load_config`, `save_config`）。
-- `core/parser.py`：基础文本解析与日志解析（`parse_text`, `parse_log`）。
-- `core/regex.py`：从配置加载正则引擎并提取字段（`RegexEngine`, `load_engine`）。
-- `core/lists.py`：IP 白 / 黑名单读写与范围匹配（`read_lines`, `write_lines`, `is_ip_in_list`）。
-- `core/ti_service.py`：ThreatBook API / HTTP 查询与结果规范化（`ThreatIntelService`, `query_pair`）。
-- `output/formatter.py`：聊天 / Excel / TI / AI 文本格式化（`render_chat`, `render_excel`, `render_ti_info`, `render_ai_result`）。
-- `integration/webhook.py`：发送消息到钉钉 / 企业微信 / 飞书（`send_record`）。
-- `app/logic.py`：封装日志处理全流程（`process_log_data`）。
-
