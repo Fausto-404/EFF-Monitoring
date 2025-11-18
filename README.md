@@ -1,6 +1,6 @@
 # EFF-Monitoring 安全告警处理系统
 
-安全监测人员的效能提升神器，一款基于 PySide6 开发的安全告警处理工具，围绕“高效日志处理、快捷辅助 研判 ”为安全监测人员的工作进行减负增效。
+安全监测人员的效能提升神器，一款基于 PySide6 开发的安全告警处理工具，围绕“高效日志处理、快捷辅助研判 ”为安全监测人员的工作进行减负增效。
 
 ## 功能特性
 
@@ -9,6 +9,7 @@
 - 内置基础 KV 解析（分号、制表符、换行等），兼容非结构化文本。
 - 提取 6 个必填字段：`src_ip`、`dst_ip`、`event_type`、`request`、`response`、`payload`。
 - 解析结果同时以「消息格式」和「Excel 格式」展示，方便复制到聊天工具或表格。
+<img width="1205" height="826" alt="image" src="https://github.com/user-attachments/assets/884a4696-4de2-4583-83d3-6b7e4353ea9b" />
 
 ### 2. 威胁情报 🔍
 - 集成微步 ThreatBook：
