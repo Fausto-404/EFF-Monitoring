@@ -18,6 +18,7 @@
 - 根据配置对源 IP / 目的 IP 分别查询，结果统一渲染为：
   - 顶部「总体概览」。
   - 下方「源 IP 威胁情报」和「目的 IP 威胁情报」分区。
+<img width="1195" height="822" alt="image" src="https://github.com/user-attachments/assets/c407987b-dd6d-4e83-a7a3-45d19cafb79f" />
 
 ### 3. AI 研判 🤖
 - 使用 SiliconFlow 的 Chat Completions 接口（默认 DeepSeek 模型）。
@@ -30,12 +31,14 @@
   - 分析目标（Objective）
   - 受众（客户 / 专家 / 初学者）
   - 输出模式（结构化 / 简要 / 报告）
+<img width="1188" height="822" alt="image" src="https://github.com/user-attachments/assets/e1ad19d9-5b56-426c-bf68-73d06c403ffc" />
 
 ### 4. IP 列表管理 📝
 - 图形界面管理白名单 / 黑名单：
   - 支持单 IP、CIDR、范围、简写范围（例如 `192.168.1.1-100`）。
 - 日志处理时自动检查源 / 目的 IP 是否在白 / 黑名单，并弹出提醒。
 - 提供脚本将文本名单迁移到 SQLite 数据库（`scripts/migrate_ip_lists.py`）。
+<img width="1190" height="819" alt="image" src="https://github.com/user-attachments/assets/54c6a75c-7c0f-4fb7-ac94-84fe1b3e73de" />
 
 ### 5. 消息推送 📤
 - 将格式化后的告警结果发送到：
@@ -43,15 +46,20 @@
   - 企业微信
   - 飞书
 - 支持同时向多个渠道发送，界面中可以查看发送结果提示。
+<img width="1191" height="816" alt="image" src="https://github.com/user-attachments/assets/6c9ddee6-c88e-4441-bb50-136334bb39cf" />
 
 ### 6. 规则与配置管理 ⚙️
 - **规则管理**（RulePage）：
   - 以表格形式管理字段规则（字段 / 匹配方式 / 正则或固定值）。
   - 6 个必填字段固定置顶并高亮，且至少保留一条规则。
   - 编辑统一通过弹窗进行，避免误改必填字段。
+<img width="1193" height="817" alt="image" src="https://github.com/user-attachments/assets/105727f5-2890-4356-a755-4bf7b1eb97f4" />
+
 - **配置管理**（ConfigPage）：
   - GUI 配置 ThreatBook、AI、Webhook、字段顺序、历史记录等。
   - 支持重新加载配置、保存配置，并在各页面自动生效。
+<img width="1193" height="819" alt="image" src="https://github.com/user-attachments/assets/257f26df-6f57-4194-89bc-08d3b67c4958" />
+
 
 ## 项目结构
 
