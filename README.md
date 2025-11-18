@@ -9,7 +9,8 @@
 - 内置基础 KV 解析（分号、制表符、换行等），兼容非结构化文本。
 - 提取 6 个必填字段：`src_ip`、`dst_ip`、`event_type`、`request`、`response`、`payload`。
 - 解析结果同时以「消息格式」和「Excel 格式」展示，方便复制到聊天工具或表格。
-<img width="1205" height="826" alt="image" src="https://github.com/user-attachments/assets/884a4696-4de2-4583-83d3-6b7e4353ea9b" />
+<img width="1191" height="819" alt="image" src="https://github.com/user-attachments/assets/9ebdb7ef-9144-4957-9c09-428933486ba1" />
+
 
 ### 2. 威胁情报 🔍
 - 集成微步 ThreatBook：
