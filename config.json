@@ -1,0 +1,145 @@
+{
+  "regex": {
+    "five_tuple": {
+      "src_ip": [
+        "源IP[:：]?\\s*([\\d\\.]{7,})",
+        "源[:：]?\\s*([\\d\\.]{7,})",
+        "攻击者\\s*([\\d\\.]{7,})"
+      ],
+      "dst_ip": [
+        "目的IP[:：]?\\s*([\\d\\.]{7,})",
+        "目\\s*([\\d\\.]{7,})",
+        "受害者视角\\s*([\\d\\.]{7,})"
+      ],
+      "event_type": [
+        "事件名称[:：]\\s*([^\\n]+)",
+        "事件分类[:：]\\s*([^\\n]+)",
+        "攻击链阶段\\s*[:：]\\s*([^\\n]+)"
+      ],
+      "request": [
+        "请求内容[:：]\\s*([\\s\\S]+?)\\n\\s*响应内容",
+        "请求体[:：]\\s*([\\s\\S]+?)\\n\\s*响应体",
+        "GET\\s+[^\\n]+?HTTP/1\\.[01][\\s\\S]+?(?=\\n{2,}|响应内容|响应体)"
+      ],
+      "response": [
+        "响应内容:\\s*([\\s\\S]+?)(?:\\n{2,}|\\Z)",
+        "响应体:\\s*([\\s\\S]+?)(?:\\n{2,}|\\Z)",
+        "HTTP/\\d\\.\\d\\s+\\d{3}[^\\n]*[\\s\\S]*?(?=\\n{2,}|\\Z)"
+      ],
+      "payload": [
+        "载荷\\s*([\\s\\S]+?)\\n\\s*流量上下文",
+        "载荷\\s*([\\s\\S]+?)(?:请求内容|响应内容)",
+        "载荷\\s*([\\s\\S]+?)\\n{2,}"
+      ]
+    },
+    "extra_fields": {}
+  },
+  "providers": {
+    "nsfocus": {
+      "enabled": false,
+      "api_key": ""
+    },
+    "qianxin": {
+      "enabled": false,
+      "api_key": ""
+    },
+    "threatbook": {
+      "enabled": true,
+      "api_key": "",
+      "mode": "both",
+      "request_mode": "http",
+      "http_cookie": ""
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "model": "deepseek-ai/DeepSeek-R1",
+    "api_key": "",
+    "base_url": "https://api.siliconflow.cn",
+    "objective": "",
+    "audience": "expert",
+    "response_mode": "structured"
+  },
+  "webhook": {
+    "dingtalk": {
+      "enabled": false,
+      "url": "",
+      "secret": ""
+    },
+    "wecom": {
+      "enabled": false,
+      "url": ""
+    },
+    "feishu": {
+      "enabled": false,
+      "url": ""
+    },
+    "enabled": true
+  },
+  "fields": {
+    "order": [
+      "src_ip",
+      "dst_ip",
+      "event_type"
+    ],
+    "auto_append_extra": false
+  },
+  "lists": {
+    "whitelist_path": "lists/whitelist.txt",
+    "blocked_path": "lists/blocked.txt",
+    "whitelist_skip_ti": true
+  },
+  "static_fields": {},
+  "manual_fields": [
+    {
+      "key": "alert_device",
+      "label": "告警设备",
+      "type": "text"
+    },
+    {
+      "key": "analyst",
+      "label": "研判人员",
+      "type": "text"
+    },
+    {
+      "key": "alert_id",
+      "label": "告警编号",
+      "type": "text"
+    },
+    {
+      "key": "compromised",
+      "label": "是否失陷",
+      "type": "select",
+      "options": [
+        "否",
+        "是"
+      ]
+    },
+    {
+      "key": "event_type",
+      "label": "事件类型",
+      "type": "text"
+    },
+    {
+      "key": "suggestion",
+      "label": "处置建议",
+      "type": "textarea"
+    }
+  ],
+  "field_labels": {
+    "src_ip": "源IP",
+    "dst_ip": "目的IP",
+    "event_name": "事件名称",
+    "alert_device": "告警设备",
+    "analyst": "研判人员",
+    "alert_id": "告警编号",
+    "compromised": "是否失陷",
+    "event_type": "事件类型",
+    "suggestion": "处置建议"
+  },
+  "history": {
+    "enabled": true,
+    "max_entries": 300,
+    "file": "output/log_history.json"
+  }
+}
