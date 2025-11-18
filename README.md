@@ -1,4 +1,13 @@
-# EFF-Monitoring 安全监测研判提效工具
+<h1 align="center">EFF-Monitoring</h1>
+
+<div align="center">
+![Release](https://img.shields.io/github/v/release/Fausto-404/EFF-Monitoring)
+![Stars](https://img.shields.io/github/stars/Fausto-404/EFF-Monitoring)
+![Issues](https://img.shields.io/github/issues/Fausto-404/EFF-Monitoring)
+![License](https://img.shields.io/github/license/Fausto-404/EFF-Monitoring)
+</div>
+
+
 
 EFF-Monitoring（Efficient Monitoring，高效监控），是一款面向安全运营 / 蓝队的本地告警处理工具，聚焦“高效日志处理 + 自动化情报补全 + AI 研判”，帮助安全监测人员在攻防演练和日常值班中快速看懂告警、打通上下游。
 
