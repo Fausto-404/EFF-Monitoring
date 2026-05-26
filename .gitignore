@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+eff_monitoring.db
+
+frontend/node_modules/
+frontend/dist/
+frontend/.npm-cache/
+frontend/tsconfig.tsbuildinfo
+
+.env

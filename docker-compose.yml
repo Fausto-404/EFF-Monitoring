@@ -1,0 +1,65 @@
+services:
+  eff-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: eff
+      POSTGRES_PASSWORD: eff_password
+      POSTGRES_DB: eff_monitoring
+    volumes:
+      - eff-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eff -d eff_monitoring"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  eff-redis:
+    image: redis:7-alpine
+    volumes:
+      - eff-redis-data:/data
+
+  eff-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://eff:eff_password@eff-postgres:5432/eff_monitoring}
+      REDIS_URL: ${REDIS_URL:-redis://eff-redis:6379/0}
+    ports:
+      - "8000:8000"
+    depends_on:
+      eff-postgres:
+        condition: service_healthy
+      eff-redis:
+        condition: service_started
+
+  eff-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://eff:eff_password@eff-postgres:5432/eff_monitoring}
+      REDIS_URL: ${REDIS_URL:-redis://eff-redis:6379/0}
+    command: ["python", "-m", "app.workers.worker"]
+    depends_on:
+      eff-api:
+        condition: service_started
+
+  eff-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - eff-api
+
+volumes:
+  eff-postgres-data:
+  eff-redis-data:
