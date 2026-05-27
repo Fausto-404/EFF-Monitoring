@@ -5,7 +5,6 @@
 ![Release](https://img.shields.io/github/v/release/Fausto-404/EFF-Monitoring)
 ![Stars](https://img.shields.io/github/stars/Fausto-404/EFF-Monitoring)
 ![Forks](https://img.shields.io/github/forks/Fausto-404/EFF-Monitoring)
-![Issues](https://img.shields.io/github/issues/Fausto-404/EFF-Monitoring)
 ![downloads](https://img.shields.io/github/downloads/Fausto-404/EFF-Monitoring/latest/total)
 
 </div>
