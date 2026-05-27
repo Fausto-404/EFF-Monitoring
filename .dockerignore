@@ -1,0 +1,15 @@
+.git
+.env
+*.db
+*.sqlite
+*.pyc
+__pycache__/
+.pytest_cache/
+
+frontend/node_modules/
+frontend/dist/
+frontend/.npm-cache/
+frontend/tsconfig.tsbuildinfo
+
+Dockerfile.*
+README.md
