@@ -61,9 +61,8 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款以内置 Agent 
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779764135445-c1674106-9e43-4d6c-bf4c-debd1a56694e.png)
 
-### AI Agent P-E-R 执行链路
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779760614522-4765dbc7-45dd-4b66-9578-ba978ed36e1d.png)
+### AI Agent 执行链路
+<img width="1672" height="941" alt="Agent架构" src="https://github.com/user-attachments/assets/80cad6af-98ad-4041-bd0e-69115b595a76" />
 
 ## 项目目录
 ```latex
@@ -189,8 +188,8 @@ npm run dev
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779763009423-5d75c0b1-952c-4658-9bd1-28d91288fb0b.png)
 
 ### 能力配置
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779768070080-703a77e5-a86b-42a6-98ec-0d7f75e9c42f.png)
+<img width="2978" height="1504" alt="image" src="https://github.com/user-attachments/assets/ad46d622-6ba1-42bc-b4fe-0ba994e7fc79" />
+
 
 ### 系统管理
 <!-- 这是一张图片，ocr 内容为： -->
