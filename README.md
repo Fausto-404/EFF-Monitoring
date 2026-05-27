@@ -6,7 +6,7 @@
 ![Stars](https://img.shields.io/github/stars/Fausto-404/EFF-Monitoring)
 ![Forks](https://img.shields.io/github/forks/Fausto-404/EFF-Monitoring)
 ![downloads](https://img.shields.io/github/downloads/Fausto-404/EFF-Monitoring/total)
-
+</div>
 EFF-Monitoring （Efficient Monitoring，高效监控）是一款面向攻防演练、日常 SOC 值守的**安全运营协作平台**，围绕告警生命周期提供**统一接入、标准化解析、资产关联、协同研判、处置流转、AI 辅助和报告输出**能力，帮助安全人员在攻防演练和日常安全运营中快速看懂告警、打通上下游。
 
 ---
