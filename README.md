@@ -1,4 +1,4 @@
-<img width="2952" height="1354" alt="image" src="https://github.com/user-attachments/assets/441f2b60-bce2-4449-a147-4cc6f2f0942d" /><h1 align="center">EFF-Monitoring 安全运营协作平台</h1>
+<h1 align="center">EFF-Monitoring 安全运营协作平台</h1>
 
 <div align="center">
 
