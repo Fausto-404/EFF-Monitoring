@@ -42,37 +42,36 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款以内置 Agent 
 + 需要把安全告警规范化输出到群机器人、报表、CSV 或 Excel 的运营场景。
 
 ## 核心场景流程
-### 日志到告警的完整数据链路
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779761999718-bb47057c-9f3d-4d43-b355-fd20f4c4c398.png)
+### 1、AI Agent 执行链路
+<img width="1672" height="941" alt="Agent架构设计图" src="https://github.com/user-attachments/assets/80fb66ac-429e-4fe8-8ebf-b50d977ba9fd" />
 
-### 告警闭环与分组协作机制
+### 2、告警闭环与分组协作机制
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779764135445-c1674106-9e43-4d6c-bf4c-debd1a56694e.png)
 
-### AI Agent 执行链路
-<img width="1672" height="941" alt="Agent架构设计图" src="https://github.com/user-attachments/assets/80fb66ac-429e-4fe8-8ebf-b50d977ba9fd" />
+### 3、日志到告警的完整数据链路
+<!-- 这是一张图片，ocr 内容为： -->
+![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779761999718-bb47057c-9f3d-4d43-b355-fd20f4c4c398.png)
 
 ## 核心亮点功能展示
-### 告警全生命周期管理与信息聚合
-告警闭环全流程记录
+### 1、告警全生命周期管理与信息聚合
+1.1、告警闭环全流程记录
 <img width="2978" height="1530" alt="image" src="https://github.com/user-attachments/assets/db169cc9-8035-4075-a8b5-5282f9ba0603" />
-关联威胁情报、资产等信息
+1.2、关联威胁情报、资产等信息
 <img width="2954" height="1524" alt="image" src="https://github.com/user-attachments/assets/54736820-9d74-4243-9235-d1e2719b95aa" />
-### Agent自主规划并调用工具
-具备规划、调用、反思等全链路思考的Agent
+### 2、Agent自主规划并调用工具
+2.1、具备规划、调用、反思等全链路思考的Agent
 <img width="2922" height="1494" alt="image" src="https://github.com/user-attachments/assets/0b8ab31f-09da-434b-a485-47d23a189788" />
-基于所有已知信息生成高可信的输出
+2.2、基于所有已知信息生成高可信的输出
 <img width="2944" height="1540" alt="image" src="https://github.com/user-attachments/assets/cf8c7f4e-1134-484f-90a9-9d6f9c1b7710" />
 
-### 高自定义的模版定义
-可以基于所有内置变量、规则生成所需的报告
+### 3、高自定义的模版定义
+3.1、可以基于所有内置变量、规则生成所需的报告
 <img width="2978" height="1530" alt="image" src="https://github.com/user-attachments/assets/a626d46d-7c31-4f6c-b00c-6247d7cc7332" />
-生成所需要的execl表格、效果格式
+3.2、生成所需要的execl表格、效果格式
 <img width="2992" height="1530" alt="image" src="https://github.com/user-attachments/assets/b1858d67-5f44-4897-b0ec-9c9a4d536377" />
-导出成高自定义的csv文件
+3.3、导出成高自定义的csv文件
 <img width="2952" height="1354" alt="image" src="https://github.com/user-attachments/assets/94c4b47f-5f34-46d3-812d-bdd8a4a9c139" />
-
 
 
 ### AI Agent 执行链路
