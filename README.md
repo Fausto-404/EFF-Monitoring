@@ -1,4 +1,4 @@
-<h1 align="center">EFF-Monitoring 安全运营协作平台</h1>
+<img width="2952" height="1354" alt="image" src="https://github.com/user-attachments/assets/441f2b60-bce2-4449-a147-4cc6f2f0942d" /><h1 align="center">EFF-Monitoring 安全运营协作平台</h1>
 
 <div align="center">
 
@@ -17,7 +17,6 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款以内置 Agent 
 
 ## 引言
 使用这个平台前，可以先想想您的场景是否有以下痛点:
-
 1. **时间断节，写报告难：** 发现和封禁没有精确时间记录，写复盘报告时全凭记忆倒推，费时费力。
 2. **疯狂切窗口，研判效率低：** 查情报、对资产、找负责人，要在好几个 Excel 、平台之间来回切换。
 3. **纯手工 CV，机械重复：** 确认一条高危，要重复复制粘贴到 Word 模板、防守台账 Excel 和微信工作群。
@@ -36,22 +35,13 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款以内置 Agent 
 + **可输出**：支持报告生成、消息模板、Excel 模板、CSV 模板、Webhook 和告警导出。
 
 ## 适用场景
-### 对应场景
 + 攻防演练期间快速同步、研判和分发安全事件。
 + SOC 值守人员统一处理来自态势感知、WAF、NDR、IPS 等设备的告警。
 + 需要把告警与资产、负责人、区域、重要性和处置结果打通的企业安全团队。
 + 需要积累可复用研判经验，并让 AI 持续吸收闭环结果的团队。
 + 需要把安全告警规范化输出到群机器人、报表、CSV 或 Excel 的运营场景。
 
-### 对应效果
-+ 将单个告警的研判流程，如：填写模板、查询威胁情报、查询黑白名单、查找对应资产、发送给AI分析、工单流转的耗时从平均3～5分钟压缩至了秒级
-+ 将重保日报、周报的数据统计流程缩短至秒级，自动生成初稿台账，大幅度降低拼凑、去重、统计数据的负担。
-+ 将复盘报告时间线梳理流程简化为系统内置的时间轴审计，数据留痕完整，省去了人工倒推、核对各个节点时间戳的对账时间。
-+ 将高危 IP 处置与名单管控流程的执行时间压缩至秒级，通过前置校验，防止了由于漏看白名单导致的误封、重复上报同一封禁IP的问题。
-+ 将跨组协同与状态流转流程的确认时间缩短至 1～2 分钟内，通过系统的认领和锁定机制，避免了责任划分不清、沟通时间消耗过高的问题。
-+ 将打通误报审计与知识闭环流程，发现误报后可以反向同步原因，告警闭环后可以进行AI经验提取，提高人工/AI后续对同类特征的研判准确度。
-
-## 核心亮点
+## 核心场景流程
 ### 日志到告警的完整数据链路
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779761999718-bb47057c-9f3d-4d43-b355-fd20f4c4c398.png)
@@ -62,6 +52,30 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款以内置 Agent 
 
 ### AI Agent 执行链路
 <img width="1672" height="941" alt="Agent架构设计图" src="https://github.com/user-attachments/assets/80fb66ac-429e-4fe8-8ebf-b50d977ba9fd" />
+
+## 核心亮点功能展示
+### 告警全生命周期管理与信息聚合
+告警闭环全流程记录
+<img width="2978" height="1530" alt="image" src="https://github.com/user-attachments/assets/db169cc9-8035-4075-a8b5-5282f9ba0603" />
+关联威胁情报、资产等信息
+<img width="2954" height="1524" alt="image" src="https://github.com/user-attachments/assets/54736820-9d74-4243-9235-d1e2719b95aa" />
+### Agent自主规划并调用工具
+具备规划、调用、反思等全链路思考的Agent
+<img width="2922" height="1494" alt="image" src="https://github.com/user-attachments/assets/0b8ab31f-09da-434b-a485-47d23a189788" />
+基于所有已知信息生成高可信的输出
+<img width="2944" height="1540" alt="image" src="https://github.com/user-attachments/assets/cf8c7f4e-1134-484f-90a9-9d6f9c1b7710" />
+
+### 高自定义的模版定义
+可以基于所有内置变量、规则生成所需的报告
+<img width="2978" height="1530" alt="image" src="https://github.com/user-attachments/assets/a626d46d-7c31-4f6c-b00c-6247d7cc7332" />
+生成所需要的execl表格、效果格式
+<img width="2992" height="1530" alt="image" src="https://github.com/user-attachments/assets/b1858d67-5f44-4897-b0ec-9c9a4d536377" />
+导出成高自定义的csv文件
+<img width="2952" height="1354" alt="image" src="https://github.com/user-attachments/assets/94c4b47f-5f34-46d3-812d-bdd8a4a9c139" />
+
+
+
+### AI Agent 执行链路
 
 
 ## 项目目录
@@ -152,46 +166,57 @@ npm run dev
 
 ## 界面预览
 ### 运营总览
+可查看告警事件数量、增长趋势、处理耗时等信息
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762676402-950e56ff-29fc-43c9-9b30-5671c67d7743.png)
 
 ### 日志解析
+可粘贴告警事件日志，点击解析日志进行自动解析，保存为事件工单进行流转处置
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762559396-21a82d94-fb78-4aae-8b4e-21e016add271.png)
 
 ### 告警工作台
+可查询、筛选已录入的安全告警事件，并进行认领、流转、指派等处置操作，并在详情处查看关联的AI研判结果、威胁情报、资产信息等
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762589395-57be5a18-8881-4304-a042-4f6f3844d127.png)
 
 ### AI 中心
+可通过AI对话问答方式了解平台安全事件信息，并进行辅助分析、报告编写等操作
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762760530-6a233408-85e0-4ea1-a47b-c752a1d17ace.png)
 
 ### 资产中心
+可配置资产网段信息，用于自动关联安全事件的源目IP地址资产
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762740740-b54b16bd-fd9e-458c-b3cb-1d7ed1fcf189.png)
 
 ### 消息中心
+根据事件处置动作或流程，推送对应的平台消息到具体的人员
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762798116-03ccbc85-5656-4c5a-bcae-140ef128e5fa.png)
 
 ### 规则中心
+支持灵活配置字段提取规则（正则表达式），支持规则生成器功能
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779765125867-f2089574-0ead-4407-92cd-97302c24aa43.png)
 
 ### 模板中心
+：支持拖拽规则字段拼接消息模板、Execl模版、Csv模版
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762995697-4db2dacd-2e06-4e57-9b8e-162addb47448.png)
 
 ### IP 名单
+支持对IP地址进行黑白名单的快速匹配
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779763009423-5d75c0b1-952c-4658-9bd1-28d91288fb0b.png)
 
 ### 能力配置
+适配常见大模型API、威胁情报、webhook，支持快速配置
 <img width="2978" height="1504" alt="image" src="https://github.com/user-attachments/assets/ad46d622-6ba1-42bc-b4fe-0ba994e7fc79" />
 
 
 ### 系统管理
+支持成员、项目、设备等权限功能，支持查看任务记录、审计日志
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779763048331-8fbc06d0-c817-4df4-9bdd-2f8ae67a150a.png)
 
