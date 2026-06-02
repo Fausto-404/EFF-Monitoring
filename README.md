@@ -185,8 +185,8 @@ npm run dev
 
 ### 内容解析
 可粘贴告警事件日志，点击解析日志进行自动解析，保存为事件工单进行流转处置
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762559396-21a82d94-fb78-4aae-8b4e-21e016add271.png)
+<img width="2996" height="1540" alt="image" src="https://github.com/user-attachments/assets/7bb0ec28-20f3-4006-92af-c78853c28f97" />
+
 
 ### 告警工作台
 可查询、筛选已录入的安全告警事件，并进行认领、流转、指派等处置操作，并在详情处查看关联的AI研判结果、威胁情报、资产信息等
@@ -207,6 +207,9 @@ npm run dev
 根据事件处置动作或流程，推送对应的平台消息到具体的人员
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762798116-03ccbc85-5656-4c5a-bcae-140ef128e5fa.png)
+### 报告中心
+支持新建、编辑、复制、导出 MD 和删除报告；支持从内容解析、运营总览等模块一键生成报告并保存
+<img width="2982" height="1532" alt="image" src="https://github.com/user-attachments/assets/9b5ee081-9aac-482d-81f7-4711a049c0a9" />
 
 ### 规则中心
 支持灵活配置字段提取规则（正则表达式），支持规则生成器功能
@@ -214,7 +217,7 @@ npm run dev
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779765125867-f2089574-0ead-4407-92cd-97302c24aa43.png)
 
 ### 模板中心
-：支持拖拽规则字段拼接消息模板、Execl模版、Csv模版
+支持拖拽规则字段拼接消息模板、Execl模版、Csv模版
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762995697-4db2dacd-2e06-4e57-9b8e-162addb47448.png)
 
