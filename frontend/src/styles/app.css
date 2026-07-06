@@ -1,0 +1,450 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #eef2f6;
+  color: #17202a;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-sider {
+  position: sticky !important;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid #d9e0e8;
+  background: #fbfcfe !important;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+}
+
+.brand span {
+  display: block;
+  color: #697586;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.app-header {
+  height: 56px;
+  padding: 0 18px;
+  background: #fff;
+  border-bottom: 1px solid #dde5ee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header h4 {
+  margin: 0;
+}
+
+.app-content {
+  padding: 14px;
+}
+
+.page {
+  background: #ffffff;
+  min-height: calc(100vh - 84px);
+  padding: 16px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.page-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-toolbar > .ant-space {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.page-toolbar h4 {
+  margin: 0 0 4px;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: url('/background.png') no-repeat center center;
+  background-size: cover;
+}
+
+.login-card {
+  width: 400px;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+pre {
+  margin: 0;
+  padding: 12px;
+  background: #f7f9fc;
+  border: 1px solid #dde5ee;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.result-box {
+  min-height: 360px;
+}
+
+.result-box.small {
+  min-height: 140px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.split-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.help-tip {
+  margin-left: 6px;
+  color: #64748b;
+  cursor: help;
+}
+
+.metric-card {
+  min-height: 104px;
+  padding: 18px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.metric-card span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.metric-card strong {
+  display: block;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.metric-card.blue strong {
+  color: #2563eb;
+}
+
+.metric-card.green strong {
+  color: #059669;
+}
+
+.metric-card.orange strong {
+  color: #d97706;
+}
+
+.metric-card.red strong {
+  color: #dc2626;
+}
+
+.dashboard-row {
+  margin-top: 14px;
+}
+
+.plain-panel {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tag-cloud {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  min-height: 78px;
+  padding: 14px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.status-card span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.status-card strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.ti-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ti-card {
+  padding: 14px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.ti-card h5 {
+  margin: 0 0 10px;
+}
+
+.top-tabs {
+  margin-top: 16px;
+}
+
+.panel-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.inline-pre {
+  min-height: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.form-row {
+  align-items: flex-start;
+}
+
+.form-row .ant-form-item {
+  flex: 1;
+}
+
+.regex-lab {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 16px;
+}
+
+.template-builder {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.asset-hit-grid,
+.asset-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ant-form-item {
+  margin-bottom: 14px;
+}
+
+.ant-table-cell {
+  vertical-align: top;
+}
+
+@media (max-width: 1280px) {
+  .app-content {
+    padding: 10px;
+  }
+
+  .page {
+    padding: 12px;
+  }
+
+  .regex-lab,
+  .template-builder,
+  .asset-hit-grid,
+  .asset-form-grid,
+  .split-panel,
+  .ti-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 88px;
+    padding: 14px;
+  }
+
+  .metric-card strong {
+    font-size: 28px;
+  }
+}
+
+.builder-palette,
+.builder-canvas {
+  min-height: 360px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.builder-canvas {
+  background: #ffffff;
+}
+
+.builder-canvas.free-text {
+  padding: 0;
+  border: none;
+}
+
+.builder-canvas.free-text .ant-typography {
+  padding: 14px 14px 0;
+}
+
+.builder-canvas.free-text textarea {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  margin-top: 10px;
+}
+
+.builder-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: grab;
+}
+
+.builder-block.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.ant-table-wrapper .ant-table {
+  border-radius: 8px;
+}
+
+.ant-table-thead > tr > th {
+  background: #f3f6fa !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+.ant-menu-light .ant-menu-item-selected {
+  background: #e8f1ff;
+  color: #1d4ed8;
+}
+
+/* AI Chat Fullscreen & Layout */
+.ai-chat-panel {
+  min-width: 0;
+}
+
+.ai-chat-panel-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: #fff;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-panel-fullscreen .ant-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-panel-fullscreen .ant-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px !important;
+}
+
+.ai-chat-layout {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  margin-bottom: 0;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+/* Ensure normal mode also scrolls correctly if needed, 
+   though ChatCenter previously used a fixed height div */
+.ai-chat-panel:not(.ai-chat-panel-fullscreen) .ai-chat-messages {
+  height: 500px;
+}
+
+.ai-chat-inputbar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.ai-chat-panel-fullscreen pre,
+.ai-chat-panel-fullscreen code {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.full-height-card {
+  height: 100%;
+}
