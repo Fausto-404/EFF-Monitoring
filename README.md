@@ -227,8 +227,7 @@ npm run dev
 
 ### IP 名单
 支持对 IP 地址进行黑白名单的快速匹配。名单按单条记录维护，支持单 IP、CIDR 和 IP 范围规则；批量导入会保留 CIDR/范围为规则条目，不会拆分为单 IP。
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779763009423-5d75c0b1-952c-4658-9bd1-28d91288fb0b.png)
+<img width="2946" height="1526" alt="image" src="https://github.com/user-attachments/assets/0a009b08-f3f2-431b-9719-cacee3b7f899" />
 
 ### 能力配置
 适配常见大模型 API、威胁情报和消息通知，支持个人配置覆盖全员配置。消息通知按平台分别配置钉钉自定义机器人、企业微信群机器人、飞书自定义机器人，避免不同 Webhook 参数混用。
@@ -237,8 +236,8 @@ npm run dev
 
 ### 系统管理
 支持成员、项目、设备、时间同步等管理功能，支持查看任务记录、审计日志。时间同步页显示应用时间、UTC 和服务器本地时间，页面时间会实时跳动。
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779763048331-8fbc06d0-c817-4df4-9bdd-2f8ae67a150a.png)
+<img width="2974" height="1510" alt="image" src="https://github.com/user-attachments/assets/00f9f00d-1340-4edd-933f-2dfb4ad445ff" />
+
 
 ## 角色与协作
 平台内置五类角色：
