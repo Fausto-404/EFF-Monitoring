@@ -26,17 +26,8 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款面向安全运�
 
 ---
 
-**<font style="color:#000000;background-color:#FBF5CB;">详细功能操作与最佳实践请查看：</font>**[**<font style="color:#000000;background-color:#FBF5CB;">操作手册.md</font>**](./操作手册.md)
-
-## 引言
-使用这个平台前，可以先想想您的场景是否有以下痛点:
-1. **时间断节，写报告难：** 发现和封禁没有精确时间记录，写复盘报告时全凭记忆倒推，费时费力。
-2. **疯狂切窗口，研判效率低：** 查情报、对资产、找负责人，要在好几个 Excel 、平台之间来回切换。
-3. **纯手工 CV，机械重复：** 确认一条高危，要重复复制粘贴到 Word 模板、防守台账 Excel 和微信工作群。
-4. **汇报全靠人肉凑：** 日报、周报、成效报告数据无法一键生成，每到交报告节点，只能加班人工统计。
-5. **用 AI 像当保姆：** 不仅要现写提示词，还要手动粘贴大量信息喂给 AI，没有适配安全保障/安全运营场景，用起来比自己看还累。
-6. **封禁两头受气，查名单费劲：** 怕误封业务背锅，怕漏封挨批，但每次去翻死板的黑白名单列表又极繁琐。
-7. **设备各自为战，协同成孤岛：** 现场各类安全设备各管一摊，其内置的协助机制根本无法跨厂商互通，导致告警散落四处，缺少一个能统一处理、集中协作的“总指挥部”。
+**详细功能操作与最佳实践请查看：** [操作手册.md](./操作手册.md)  
+**浏览器插件请查看：** [EFF-Assistant](https://github.com/Fausto-404/EFF-Assistant)
 
 ## 平台价值
 + **统一解析**：将不同设备、不同格式的原始日志转换为标准研判字段。
@@ -71,14 +62,15 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款面向安全运�
 ## 核心亮点功能展示
 ### 1、告警全生命周期管理与信息聚合
 1.1、告警闭环全流程记录
-<img width="2978" height="1530" alt="image" src="https://github.com/user-attachments/assets/db169cc9-8035-4075-a8b5-5282f9ba0603" />
+<img width="2936" height="1508" alt="image" src="https://github.com/user-attachments/assets/16d726ca-a2f2-47ac-8ffd-956564bc332f" />
 1.2、关联威胁情报、资产等信息
-<img width="2954" height="1524" alt="image" src="https://github.com/user-attachments/assets/54736820-9d74-4243-9235-d1e2719b95aa" />
+<img width="2834" height="1530" alt="image" src="https://github.com/user-attachments/assets/b0609e34-f443-411c-8174-e1470a63ce9c" />
 ### 2、Agent自主规划并调用工具
 2.1、具备规划、调用、反思等全链路思考的Agent
-<img width="2922" height="1494" alt="image" src="https://github.com/user-attachments/assets/0b8ab31f-09da-434b-a485-47d23a189788" />
+<img width="2964" height="1518" alt="image" src="https://github.com/user-attachments/assets/ea8cb3e7-dbcc-4173-b09d-1684faa648ab" />
 2.2、基于所有已知信息生成高可信的输出
-<img width="2944" height="1540" alt="image" src="https://github.com/user-attachments/assets/cf8c7f4e-1134-484f-90a9-9d6f9c1b7710" />
+<img width="2952" height="1530" alt="image" src="https://github.com/user-attachments/assets/39d02e30-7168-4929-9b7a-01bd1ad0fcec" />
+
 
 ### 3、高自定义的模版定义
 3.1、可以基于所有内置变量、规则生成所需的报告
@@ -144,28 +136,6 @@ docker-compose up -d --build
 + 后端 API：`http://localhost:8000`
 + 健康检查：`http://localhost:8000/healthz`
 
-### v2.2.0 并行部署
-
-如果需要保留旧环境和数据，同时启动 v2.2.0 独立环境，可使用：
-
-```bash
-docker compose -p eff-monitoring-v220 -f docker-compose.yml -f docker-compose.v220.yml up -d --build
-```
-
-默认并行访问地址：
-
-+ 前端页面：`http://localhost:18080`
-+ 后端 API：`http://localhost:18000`
-+ 健康检查：`http://localhost:18000/healthz`
-
-并行部署会使用独立 Compose project 和数据卷，不会清理旧环境数据。前端保持 `VITE_API_BASE_URL=""`，通过 nginx `/api` 反向代理到容器内后端服务。
-
-默认管理员账号：
-
-> 管理员账号密码通过 `.env` 文件中的 `INITIAL_ADMIN_USERNAME` 和 `INITIAL_ADMIN_PASSWORD` 配置。
-> 默认值（仅开发环境）：`admin / admin123`
-
-生产环境务必修改 `.env` 中的所有安全相关配置（`JWT_SECRET`、`POSTGRES_PASSWORD`、`INITIAL_ADMIN_PASSWORD` 等），详见 `.env.example` 中的注释。
 
 ### 本地开发
 后端：
@@ -199,7 +169,7 @@ npm run dev
 | 规则中心 | 元规则、自定义规则、正则测试、设备规则适配、规则生成 |
 | 模板中心 | 消息模板、Excel 模板、CSV 模板 |
 | IP 名单 | 白名单、黑名单、CIDR/IP 范围检测、表格化维护、批量导入、名单导出 |
-| 系统设置 | AI 模型网关、威胁情报、消息通知、浏览器插件接入的全员配置与个人配置，支持连通性测试、模型列表获取和插件 PAT 管理 |
+| 能力配置 | AI 模型网关、威胁情报、消息通知、浏览器插件接入的全员配置与个人配置，支持连通性测试、模型列表获取和插件 PAT 管理 |
 | 系统管理 | 成员、设备、时间同步、备份与还原、审计日志、后台任务、历史导入 |
 
 
@@ -221,8 +191,8 @@ npm run dev
 
 ### AI 中心
 可通过对话式 AI 查询平台安全事件、进行威胁分析、通用问答和报告生成。威胁分析 Agent 会优先使用平台告警、资产、情报、相似经验等证据；通用问答 Agent 更适合普通问题；报告生成 Agent 面向总结、复盘和汇报材料生成。
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779762760530-6a233408-85e0-4ea1-a47b-c752a1d17ace.png)
+<img width="2986" height="1512" alt="image" src="https://github.com/user-attachments/assets/37a131af-29c3-4139-90a1-2c72285ed201" />
+
 
 ### 资产中心
 可配置资产网段信息，用于自动关联安全事件的源目IP地址资产
@@ -246,12 +216,11 @@ npm run dev
 
 ### IP 名单
 支持对 IP 地址进行黑白名单的快速匹配。名单按单条记录维护，支持单 IP、CIDR 和 IP 范围规则；批量导入会保留 CIDR/范围为规则条目，不会拆分为单 IP。
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/28328372/1779763009423-5d75c0b1-952c-4658-9bd1-28d91288fb0b.png)
+<img width="2998" height="1536" alt="image" src="https://github.com/user-attachments/assets/5a6d7a53-2cbc-4e48-b0ca-00d214cfe728" />
 
 ### 能力配置
-适配常见大模型 API、威胁情报和消息通知，支持个人配置覆盖全员配置。消息通知按平台分别配置钉钉自定义机器人、企业微信群机器人、飞书自定义机器人，避免不同 Webhook 参数混用。
-<img width="2978" height="1504" alt="image" src="https://github.com/user-attachments/assets/ad46d622-6ba1-42bc-b4fe-0ba994e7fc79" />
+适配常见大模型 API、威胁情报和消息通知，支持个人配置覆盖全员配置。并支持浏览器插件PAT接入。
+<img width="3002" height="1522" alt="image" src="https://github.com/user-attachments/assets/3849fa0a-844f-4eb0-ac57-386e7fb4b41b" />
 
 
 ### 系统管理
@@ -300,46 +269,64 @@ ENABLE_DEMO_DATA=true
 演示日志中的公网 IP 使用文档保留地址段，不包含真实客户 IP。
 
 ## 更新记录
-### v2.2.0
-+ **AI 能力重构**：AI 中心拆分为威胁分析、通用问答和报告生成 Agent，并支持快速 / 思考模式。威胁分析 Agent 可回答威胁分析类问题，思考模式会主动调用平台只读工具查询告警、资产、威胁情报、经验和运营数据。
-+ **告警智能研判升级**：告警详情 AI 研判改为结构化展示，默认展开并突出研判结论、研判标签、风险等级、置信度、证据链和分析步骤；告警工作台与插件智能研判共用平台证据增强链路。
-+ **浏览器插件接入**：新增插件 API 与个人 PAT，支持 EFF Assistant 同步设备、解析页面、生成工单和智能研判。插件快速研判可独立运行，智能研判使用平台资产、情报、相似告警和 STE 经验增强。
-+ **系统配置优化**：插件接入配置仅保留在个人配置中，PAT 绑定当前用户，平台记录创建人、运行状态和操作审计。
-+ **协作与权限增强**：成员角色支持多选；告警详情重构为概览、资产与情报、AI 研判、原始证据和协作流转；插件生成告警会写入创建状态记录。
-+ **备份与还原**：系统管理新增备份与还原，可导出当前工作区 JSON 备份，并在恢复时根据当前版本字段自动兼容。
-+ **任务与审计清理**：任务记录和审计日志支持单条删除和批量删除。
-+ **Docker 并行部署**：新增 `docker-compose.v220.yml`，支持 `eff-monitoring-v220` project 以 `18080/18000` 端口与旧环境并行运行。
 
-### v2.1.4
-+ **系统时间管理**：系统管理新增“时间同步”页，可配置应用时区和 NTP 服务器列表；业务时间生成、默认今日统计、消息已读、告警认领和报表生成按应用时区执行，当前时间在页面实时跳动显示。
-+ **告警工作台刷新增强**：新增手动刷新按钮和自动刷新开关，支持 30 秒、1 分钟、3 分钟、5 分钟刷新频率；告警列表改为服务端分页，适合每日数千告警的协作查看。
-+ **IP 名单表格化**：IP 名单从文本框改为单条记录管理，支持新增、编辑、删除、批量删除、筛选、导出和批量导入，CIDR 与范围保留为规则条目，兼容告警流转与解析命中检测。
-+ **消息通知增强**：消息通知改为按平台选择钉钉、企业微信、飞书，并分别维护 Webhook URL、签名 Secret、企业微信 @ 成员等专属参数；发送失败会返回第三方错误详情。
-+ **部署兼容增强**：新增 `scripts/compose-up.sh`，自动兼容 Docker Compose v1/v2，降低不同 Linux 环境部署差异。
+<details>
+<summary><strong>v2.2.0</strong></summary>
 
-### v2.1.3
-+ **设备规则/模板导入包**：系统管理的设备列表新增按设备导出、导入“规则/模板导入包”功能。导出包为 JSON，包含设备信息、该设备绑定的解析规则和模板。
+- **AI 能力重构**：AI 中心拆分为威胁分析、通用问答和报告生成 Agent，并支持快速 / 思考模式。威胁分析 Agent 可回答威胁分析类问题，思考模式会主动调用平台只读工具查询告警、资产、威胁情报、经验和运营数据。
+- **告警智能研判升级**：告警详情 AI 研判改为结构化展示，默认展开并突出研判结论、研判标签、风险等级、置信度、证据链和分析步骤；告警工作台与插件智能研判共用平台证据增强链路。
+- **浏览器插件接入**：新增插件 API 与个人 PAT，支持 EFF Assistant 同步设备、解析页面、生成工单和智能研判。插件快速研判可独立运行，智能研判使用平台资产、情报、相似告警和 STE 经验增强。
+- **系统配置优化**：插件接入配置仅保留在个人配置中，PAT 绑定当前用户，平台记录创建人、运行状态和操作审计。
+- **协作与权限增强**：成员角色支持多选；告警详情重构为概览、资产与情报、AI 研判、原始证据和协作流转；插件生成告警会写入创建状态记录。
+- **备份与还原**：系统管理新增备份与还原，可导出当前工作区 JSON 备份，并在恢复时根据当前版本字段自动兼容。
+- **任务与审计清理**：任务记录和审计日志支持单条删除和批量删除。
 
-### v2.1.2
-+ **安全事件跟踪表导出增强**：系统内置 `安全事件跟踪表` CSV 模板，支持导出告警编号、事件ID、告警设备、攻击源/目的 IP、研判结果、封禁位置、处置描述等字段。
-+ **设备类型与处置补充**：设备支持区分监测设备/封禁设备；封禁处置可选择封禁设备，应急处置可填写非必填处置描述。
-+ **交付包默认无历史测试数据**：默认关闭演示数据初始化，交付目录不携带当前环境 Docker 数据卷。
+</details>
 
-### v2.1.1
-+ **配置整合**：`.env` 作为唯一配置来源，`docker-compose.yml` 中所有密码/secrets 统一通过 `${VAR}` 引用，修改密码只需改 `.env` 一处。新增 `POSTGRES_PASSWORD`、`DEMO_USER_PASSWORD` 独立变量，演示用户密码改为可配置。
-+ **Docker 兼容性修复**：`VITE_API_BASE_URL` 从根 `.env` 中移除（改为 `Dockerfile.frontend` 构建参数），不再注入后端容器导致 Pydantic `extra_forbidden` 校验崩溃。`docker-compose.yml` 兼容 Docker Compose v1（Python `docker-compose`）与 v2（Go `docker compose`）全版本。
-+ **安全加固**：新增 `backend/app/core/startup.py` 启动校验模块，检测 JWT_SECRET / INITIAL_ADMIN_PASSWORD 是否使用不安全默认值。生产环境（PostgreSQL）下使用默认密码时在日志中输出 `=== SECURITY WARNING ===` 醒目告警。
-+ **健康检查增强**：`/healthz` 和 `/readyz` 端点改为实际执行 `SELECT 1` 验证数据库连通性，数据库不可达时返回 `degraded`/`not_ready` 状态（`/readyz` 返回 HTTP 503）。
-+ **启动可靠性**：后端容器新增 `docker/entrypoint.sh`，从 `DATABASE_URL` 解析 host:port 并轮询等待 PostgreSQL 就绪（最多 60 秒），避免数据库未就绪时容器反复重启。
-+ **前端错误反馈**：系统管理页新增/编辑成员、设备的 mutation 增加 `onError` 回调，API 失败时通过 `message.error()` 显示后端返回的具体错误信息。
-+ **`.gitignore`**：新增防止 `.env` 等敏感文件被提交。
+<details>
+<summary><strong>v2.1.4</strong></summary>
 
-### v2.1
-+ **新增报告中心**：支持新建、编辑、复制、导出 MD 和删除报告；支持从内容解析、运营总览等模块一键生成报告并保存。
-+ **权限修复**：修复 viewer 只读用户可绕过前端直接调用写接口（规则创建、模板创建/编辑、配置修改、Webhook 发送）的安全漏洞。
+- **系统时间管理**：系统管理新增“时间同步”页，可配置应用时区和 NTP 服务器列表；业务时间生成、默认今日统计、消息已读、告警认领和报表生成按应用时区执行，当前时间在页面实时跳动显示。
+- **告警工作台刷新增强**：新增手动刷新按钮和自动刷新开关，支持 30 秒、1 分钟、3 分钟、5 分钟刷新频率；告警列表改为服务端分页，适合每日数千告警的协作查看。
+- **IP 名单表格化**：IP 名单从文本框改为单条记录管理，支持新增、编辑、删除、批量删除、筛选、导出和批量导入，CIDR 与范围保留为规则条目，兼容告警流转与解析命中检测。
+- **消息通知增强**：消息通知改为按平台选择钉钉、企业微信、飞书，并分别维护 Webhook URL、签名 Secret、企业微信 @ 成员等专属参数；发送失败会返回第三方错误详情。
+- **部署兼容增强**：新增 `scripts/compose-up.sh`，自动兼容 Docker Compose v1/v2，降低不同 Linux 环境部署差异。
 
-### v2.0.1
-+ **Agent 链路重构**：新增任务建模、证据覆盖检查、结构化反思和定向补查，问答更稳。
-+ **系统设置升级**：支持 AI 连通性测试、模型列表获取，个人配置与全员配置隔离，密钥脱敏保存更安全。
-+ **规则与部署修复**：解析规则支持 `match_all` 多命中提取。
-+ **BUG修复**：修复一些使用上的小BUG。
+</details>
+
+<details>
+<summary><strong>v2.1.3</strong></summary>
+
+- **设备规则/模板导入包**：系统管理的设备列表新增按设备导出、导入“规则/模板导入包”功能。导出包为 JSON，包含设备信息、该设备绑定的解析规则和模板。
+
+</details>
+
+<details>
+<summary><strong>v2.1.2</strong></summary>
+
+- **安全事件跟踪表导出增强**：系统内置 `安全事件跟踪表` CSV 模板，支持导出告警编号、事件ID、告警设备、攻击源/目的 IP、研判结果、封禁位置、处置描述等字段。
+- **设备类型与处置补充**：设备支持区分监测设备/封禁设备；封禁处置可选择封禁设备，应急处置可填写非必填处置描述。
+- **交付包默认无历史测试数据**：默认关闭演示数据初始化，交付目录不携带当前环境 Docker 数据卷。
+
+</details>
+
+<details>
+<summary><strong>v2.1.1</strong></summary>
+
+- **配置整合**：`.env` 作为唯一配置来源，`docker-compose.yml` 中所有密码/secrets 统一通过 `${VAR}` 引用，修改密码只需改 `.env` 一处。新增 `POSTGRES_PASSWORD`、`DEMO_USER_PASSWORD` 独立变量，演示用户密码改为可配置。
+- **Docker 兼容性修复**：`VITE_API_BASE_URL` 从根 `.env` 中移除（改为 `Dockerfile.frontend` 构建参数），不再注入后端容器导致 Pydantic `extra_forbidden` 校验崩溃。`docker-compose.yml` 兼容 Docker Compose v1（Python `docker-compose`）与 v2（Go `docker compose`）全版本。
+- **安全加固**：新增 `backend/app/core/startup.py` 启动校验模块，检测 JWT_SECRET / INITIAL_ADMIN_PASSWORD 是否使用不安全默认值。生产环境（PostgreSQL）下使用默认密码时在日志中输出 `=== SECURITY WARNING ===` 醒目告警。
+- **健康检查增强**：`/healthz` 和 `/readyz` 端点改为实际执行 `SELECT 1` 验证数据库连通性，数据库不可达时返回 `degraded`/`not_ready` 状态（`/readyz` 返回 HTTP 503）。
+- **启动可靠性**：后端容器新增 `docker/entrypoint.sh`，从 `DATABASE_URL` 解析 host:port 并轮询等待 PostgreSQL 就绪（最多 60 秒），避免数据库未就绪时容器反复重启。
+- **前端错误反馈**：系统管理页新增/编辑成员、设备的 mutation 增加 `onError` 回调，API 失败时通过 `message.error()` 显示后端返回的具体错误信息。
+- **`.gitignore`**：新增防止 `.env` 等敏感文件被提交。
+
+</details>
+
+<details>
+<summary><strong>v2.1</strong></summary>
+
+- **新增报告中心**：支持新建、编辑、复制、导出 MD 和删除报告；支持从内容解析、运营总览等模块一键生成报告并保存。
+- **权限修复**：修复 viewer 只读用户可绕过前端直接调用写接口（规则创建、模板创建/编辑、配置修改、Webhook 发送）的安全漏洞。
+
+</details>
