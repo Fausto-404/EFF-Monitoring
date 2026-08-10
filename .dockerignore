@@ -1,0 +1,17 @@
+.git
+.DS_Store
+**/.DS_Store
+
+frontend/node_modules
+frontend/dist
+frontend/tsconfig.tsbuildinfo
+
+**/__pycache__
+**/*.pyc
+
+.venv
+venv
+node_modules
+dist
+
+*.log

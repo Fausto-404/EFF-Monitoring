@@ -1,0 +1,11 @@
+services:
+  eff-api:
+    ports: !override
+      - "18000:8000"
+
+  eff-web:
+    build:
+      args:
+        VITE_API_BASE_URL: ""
+    ports: !override
+      - "18080:80"
