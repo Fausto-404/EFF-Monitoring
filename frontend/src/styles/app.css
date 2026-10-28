@@ -900,6 +900,7 @@ pre {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
+  padding-right: 10px;
   user-select: none;
 }
 
@@ -910,10 +911,11 @@ pre {
 }
 
 .alert-column-resizer {
-  flex: 0 0 8px;
-  align-self: stretch;
-  margin: -8px -8px -8px 8px;
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 10px;
   z-index: 1;
   cursor: col-resize;
   background: transparent;
