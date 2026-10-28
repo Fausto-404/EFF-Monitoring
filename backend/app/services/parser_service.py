@@ -267,6 +267,8 @@ def parse_text_for_user(
             ip_list_alerts.append({"field": key, "label": label, "ip": str(val), "list": "whitelist", "message": f"{label} {val} 命中白名单"})
         if val and is_ip_in_list(str(val), ip_lists.get("blacklist", [])):
             ip_list_alerts.append({"field": key, "label": label, "ip": str(val), "list": "blacklist", "message": f"{label} {val} 命中黑名单"})
+        if val and is_ip_in_list(str(val), ip_lists.get("pending_hosts", [])):
+            ip_list_alerts.append({"field": key, "label": label, "ip": str(val), "list": "pending", "message": f"{label} {val} 属于待排查主机"})
 
     # 4. 资产关联：个体优先，网段兜底，最后域名
     def _find_asset(ip_val: str | None, domain_val: str | None) -> dict[str, Any]:

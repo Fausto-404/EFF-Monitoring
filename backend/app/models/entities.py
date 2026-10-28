@@ -57,6 +57,11 @@ class Device(Base, TimestampMixin):
     device_role: Mapped[str] = mapped_column(String(40), default="monitor", nullable=False)
     browser_assistant_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     browser_url_patterns: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    block_script: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    @property
+    def has_block_script(self) -> bool:
+        return bool(self.block_script.strip())
 
 
 class Asset(Base, TimestampMixin):
@@ -266,6 +271,23 @@ class TaskRecord(Base, TimestampMixin):
     error: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
 
+class BackupJob(Base, TimestampMixin):
+    __tablename__ = "backup_jobs"
+    __table_args__ = (Index("ix_backup_jobs_workspace_status", "workspace_id", "status"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    current_table: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    processed_rows: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_rows: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    bytes_written: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    filename: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    error: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class AiPrompt(Base, TimestampMixin):
     __tablename__ = "ai_prompts"
     __table_args__ = (UniqueConstraint("workspace_id", "prompt_key", "name", name="uq_ai_prompt_workspace_key_name"),)
@@ -372,3 +394,19 @@ class PluginAccessToken(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PluginAlertRequest(Base, TimestampMixin):
+    """Idempotency ledger for browser-assistant ticket submissions."""
+
+    __tablename__ = "plugin_alert_requests"
+    __table_args__ = (UniqueConstraint("workspace_id", "actor_id", "request_key", name="uq_plugin_alert_request_actor_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), nullable=False, index=True)
+    actor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    request_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    alert_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    alert_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    response: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)

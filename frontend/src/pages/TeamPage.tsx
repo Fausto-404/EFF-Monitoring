@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Select, Space, Switch, Table, Tabs, Typography, Upload, message } from 'antd';
+import { Alert, Button, Card, Form, Input, Modal, Popconfirm, Progress, Radio, Select, Space, Switch, Table, Tabs, Tag, Typography, Upload, message } from 'antd';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
 import type { AuditLog, TaskRecord, User } from '../api/types';
@@ -258,17 +258,85 @@ type BackupInspectResult = {
   }>;
 };
 
+type BackupJob = {
+  id: number;
+  status: 'queued' | 'running' | 'success' | 'failed';
+  current_table: string;
+  processed_rows: number;
+  total_rows: number;
+  bytes_written: number;
+  filename: string;
+  error: string;
+  created_at: string;
+  completed_at?: string;
+};
+
+type BackupJobPage = {
+  items: BackupJob[];
+  total: number;
+  active_job: BackupJob | null;
+};
+
+const backupStatusLabels: Record<BackupJob['status'], string> = {
+  queued: '排队中', running: '生成中', success: '已完成', failed: '失败'
+};
+
+const backupStatusColors: Record<BackupJob['status'], string> = {
+  queued: 'default', running: 'processing', success: 'success', failed: 'error'
+};
+
+const backupProgress = (job: BackupJob) => job.status === 'success'
+  ? 100 : job.total_rows ? Math.min(99, Math.floor(job.processed_rows / job.total_rows * 100)) : 0;
+
+const backupSize = (bytes: number) => bytes < 1048576
+  ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / 1048576).toFixed(1)} MiB`;
+
 function BackupRestorePanel() {
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  const [jobStatus, setJobStatus] = useState<BackupJob['status'] | undefined>();
+  const [jobPage, setJobPage] = useState(1);
+  const [jobPageSize, setJobPageSize] = useState(10);
   const queryClient = useQueryClient();
 
-  const exportBackup = async () => {
-    const response = await api.get('/api/backup/export', { responseType: 'blob' });
-    const disposition = String(response.headers['content-disposition'] || '');
-    const match = disposition.match(/filename="?([^";]+)"?/i);
-    downloadBlob(response.data, match?.[1] || `eff-monitoring-backup-${dayjs().format('YYYYMMDD-HHmmss')}.json`);
+  const { data: backupJobs, isFetching: jobsFetching, refetch: refetchJobs } = useQuery({
+    queryKey: ['backup-jobs', jobStatus, jobPage, jobPageSize],
+    queryFn: async () => (await api.get<BackupJobPage>('/api/backup/jobs', {
+      params: { status: jobStatus, limit: jobPageSize, offset: (jobPage - 1) * jobPageSize }
+    })).data,
+    refetchInterval: (query) => query.state.data?.active_job ? 3000 : false
+  });
+  const startBackup = useMutation({
+    mutationFn: async () => (await api.post<BackupJob>('/api/backup/jobs')).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['backup-jobs'] });
+      message.success('备份任务已提交，可离开页面，任务将在后台继续');
+    },
+    onError: (err: any) => message.error(err?.response?.data?.detail || '创建备份任务失败')
+  });
+  const downloadBackup = async (jobId: number) => {
+    try {
+      const { data } = await api.post<{ ticket: string }>(`/api/backup/jobs/${jobId}/ticket`);
+      const url = api.getUri({ url: `/api/backup/jobs/${jobId}/download`, params: { ticket: data.ticket } });
+      const link = document.createElement('a');
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || '下载备份失败');
+    }
   };
+  const deleteBackup = useMutation({
+    mutationFn: async (jobId: number) => (await api.delete<{ file_cleanup_failed: boolean }>(`/api/backup/jobs/${jobId}`)).data,
+    onSuccess: (result) => {
+      if (backupJobs?.items.length === 1 && jobPage > 1) setJobPage(jobPage - 1);
+      queryClient.invalidateQueries({ queryKey: ['backup-jobs'] });
+      if (result.file_cleanup_failed) message.warning('任务记录已删除，但服务器文件清理失败，请检查备份目录');
+      else message.success('备份任务及服务器文件已删除');
+    },
+    onError: (err: any) => message.error(err?.response?.data?.detail || '删除备份任务失败')
+  });
 
   const inspect = useMutation({
     mutationFn: async (nextFile: File) => {
@@ -300,10 +368,49 @@ function BackupRestorePanel() {
   return (
     <Space direction="vertical" size="middle" className="full-width">
       <Card size="small" title="导出备份">
-        <Space direction="vertical" size="small">
+        <Space direction="vertical" size="small" className="full-width">
           <Typography.Text type="secondary">建议在升级平台、迁移 Docker 数据卷、修改核心配置前先导出备份。</Typography.Text>
-          <Button type="primary" onClick={exportBackup}>下载当前工作区备份</Button>
+          <Button type="primary" loading={startBackup.isPending} disabled={!!backupJobs?.active_job} onClick={() => startBackup.mutate()}>创建后台备份</Button>
+          {backupJobs?.active_job && (
+            <Alert type="info" showIcon message={`备份 #${backupJobs.active_job.id} ${backupStatusLabels[backupJobs.active_job.status]}`}
+              description={<Space direction="vertical" className="full-width">
+                <Progress size="small" percent={backupProgress(backupJobs.active_job)} status="active" />
+                <Typography.Text type="secondary">{backupJobs.active_job.current_table || '正在准备'} · {backupJobs.active_job.processed_rows.toLocaleString()} / {backupJobs.active_job.total_rows.toLocaleString()} 条</Typography.Text>
+              </Space>}
+            />
+          )}
         </Space>
+      </Card>
+      <Card size="small" title="备份任务管理" extra={<Space>
+        <Select allowClear placeholder="全部状态" style={{ width: 130 }} value={jobStatus}
+          options={Object.entries(backupStatusLabels).map(([value, label]) => ({ value, label }))}
+          onChange={(value) => { setJobStatus(value); setJobPage(1); }} />
+        <Button onClick={() => void refetchJobs()} loading={jobsFetching}>刷新</Button>
+      </Space>}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>可在这里查看后台进度、下载已完成备份，或清理不再需要的任务及服务器文件。</Typography.Paragraph>
+        <Table<BackupJob> size="small" rowKey="id" dataSource={backupJobs?.items || []} loading={jobsFetching}
+          scroll={{ x: 860 }}
+          pagination={{ current: jobPage, pageSize: jobPageSize, total: backupJobs?.total || 0, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'], showTotal: (total) => `共 ${total} 条任务`, onChange: (page, size) => { setJobPage(page); setJobPageSize(size); } }}
+          columns={[
+            { title: '任务', dataIndex: 'id', width: 70, render: (id: number) => `#${id}` },
+            { title: '创建时间', dataIndex: 'created_at', width: 155, render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss') },
+            { title: '状态 / 错误', key: 'status', width: 175, render: (_, job) => <Space direction="vertical" size={0}>
+              <Tag color={backupStatusColors[job.status]}>{backupStatusLabels[job.status]}</Tag>
+              {job.error && <Typography.Text type="danger" ellipsis={{ tooltip: job.error }} style={{ maxWidth: 160 }}>{job.error}</Typography.Text>}
+            </Space> },
+            { title: '进度 / 记录数', key: 'progress', width: 210, render: (_, job) => <Space direction="vertical" size={0}>
+              <Progress size="small" percent={backupProgress(job)} status={job.status === 'failed' ? 'exception' : job.status === 'success' ? 'success' : 'active'} style={{ width: 145 }} />
+              <Typography.Text type="secondary">{job.status === 'success' ? '已完成' : job.status === 'failed' ? '执行失败' : job.current_table || '正在准备'} · {job.processed_rows.toLocaleString()} / {job.total_rows.toLocaleString()} 条</Typography.Text>
+            </Space> },
+            { title: '文件大小', dataIndex: 'bytes_written', width: 95, render: (value: number) => backupSize(value) },
+            { title: '操作', key: 'actions', width: 130, fixed: 'right', render: (_, job) => <Space size="small">
+              {job.status === 'success' && <Button type="link" size="small" title={job.filename} onClick={() => void downloadBackup(job.id)}>下载</Button>}
+              <Popconfirm title="删除备份任务？" description="将永久删除任务记录及服务器上的备份文件；请先下载保存。" okText="删除" okButtonProps={{ danger: true }} cancelText="取消" onConfirm={() => deleteBackup.mutate(job.id)} disabled={['queued', 'running'].includes(job.status)}>
+                <Button type="link" danger size="small" loading={deleteBackup.isPending && deleteBackup.variables === job.id} disabled={['queued', 'running'].includes(job.status)}>删除</Button>
+              </Popconfirm>
+            </Space> }
+          ]}
+        />
       </Card>
       <Card size="small" title="还原备份">
         <Space direction="vertical" size="middle" className="full-width">
@@ -502,7 +609,8 @@ function TasksPanel() {
         dataSource={data}
         rowSelection={{
           selectedRowKeys: selectedIds,
-          onChange: (keys) => setSelectedIds(keys.map((item) => Number(item)))
+          onChange: (keys) => setSelectedIds(keys.map((item) => Number(item))),
+          getCheckboxProps: (row: TaskRecord) => ({ disabled: row.task_type === 'block_ip' })
         }}
         pagination={{ pageSizeOptions: ['10', '20', '50', '100'], showSizeChanger: true }}
         columns={[
@@ -520,9 +628,11 @@ function TasksPanel() {
             width: 90,
             fixed: 'right',
             render: (_: unknown, row: TaskRecord) => (
-              <Popconfirm title="删除该任务记录？" onConfirm={() => deleteOne.mutate(row.id)}>
-                <Button size="small" danger loading={deleteOne.isPending}>删除</Button>
-              </Popconfirm>
+              row.task_type === 'block_ip' ? <Tag color="blue">审计保留</Tag> : (
+                <Popconfirm title="删除该任务记录？" onConfirm={() => deleteOne.mutate(row.id)}>
+                  <Button size="small" danger loading={deleteOne.isPending}>删除</Button>
+                </Popconfirm>
+              )
             )
           }
         ]}

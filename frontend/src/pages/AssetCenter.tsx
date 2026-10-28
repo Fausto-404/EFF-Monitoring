@@ -251,7 +251,7 @@ function AssetsPanel({ isAdmin }: { isAdmin: boolean }) {
                 type={listCheck?.matched ? 'warning' : 'success'}
                 showIcon
                 message={listCheck?.matched ? '该资产 IP 命中名单' : '该资产 IP 未命中白/黑名单'}
-                description={<Space wrap>{(listCheck?.matches || []).map((item: any) => <Tag color={item.list === 'blacklist' ? 'red' : 'blue'} key={`${item.list}-${item.range}`}>{item.label}: {item.range}</Tag>)}</Space>}
+                description={<Space wrap>{(listCheck?.matches || []).map((item: any) => <Tag color={item.list === 'blacklist' ? 'red' : item.list === 'pending' ? 'orange' : 'blue'} key={`${item.list}-${item.range}`}>{item.label}: {item.range}</Tag>)}</Space>}
               />
             )}
           </Space>

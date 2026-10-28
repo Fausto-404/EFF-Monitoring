@@ -386,7 +386,7 @@ def _parse_import_values(payload: dict[str, Any]) -> list[str]:
 @router.post("/ip-lists/import")
 def import_ip_list_items(payload: dict[str, Any], db: Session = Depends(get_db), user: User = Depends(require_not_viewer)):
     list_type = payload.get("list_type")
-    if list_type not in {"whitelist", "blacklist"}:
+    if list_type not in {"whitelist", "blacklist", "pending"}:
         raise HTTPException(status_code=400, detail="请选择白名单或黑名单")
     description = str(payload.get("description") or "")
     values = _parse_import_values(payload)
@@ -445,10 +445,10 @@ def check_ip_list(payload: dict[str, str], db: Session = Depends(get_db), user: 
     row = get_ip_list_setting(db, user.workspace_id)
     value = row.value or {"whitelist": [], "blacklist": []}
     matches = []
-    for list_name, label in (("whitelist", "白名单"), ("blacklist", "黑名单")):
+    for list_name, label in (("whitelist", "白名单"), ("blacklist", "黑名单"), ("pending_hosts", "待排查主机")):
         for item in value.get(list_name, []):
             if is_ip_in_list(ip, [item]):
-                matches.append({"list": list_name, "label": label, "range": item})
+                matches.append({"list": "pending" if list_name == "pending_hosts" else list_name, "label": label, "range": item})
     return {"ip": ip, "matched": bool(matches), "matches": matches}
 
 
@@ -458,6 +458,7 @@ def export_ip_lists(type: str = "all", db: Session = Depends(get_db), user: User
     value = row.value or {"whitelist": [], "blacklist": []}
     whitelist = [str(item).strip() for item in value.get("whitelist", []) if str(item).strip()]
     blacklist = [str(item).strip() for item in value.get("blacklist", []) if str(item).strip()]
+    pending = [str(item).strip() for item in value.get("pending_hosts", []) if str(item).strip()]
 
     if type == "whitelist":
         filename = "whitelist.txt"
@@ -465,11 +466,14 @@ def export_ip_lists(type: str = "all", db: Session = Depends(get_db), user: User
     elif type == "blacklist":
         filename = "blacklist.txt"
         lines = blacklist
+    elif type == "pending":
+        filename = "pending-hosts.txt"
+        lines = pending
     elif type == "all":
         filename = "ip-lists.txt"
-        lines = ["# 白名单", *whitelist, "", "# 黑名单", *blacklist]
+        lines = ["# 白名单", *whitelist, "", "# 黑名单", *blacklist, "", "# 待排查主机", *pending]
     else:
-        raise HTTPException(status_code=400, detail="type 仅支持 whitelist、blacklist 或 all")
+        raise HTTPException(status_code=400, detail="type 仅支持 whitelist、blacklist、pending 或 all")
 
     content = "\n".join(lines).rstrip() + "\n"
     return StreamingResponse(
@@ -872,6 +876,8 @@ def delete_task(task_id: int, db: Session = Depends(get_db), user: User = Depend
     row = db.get(TaskRecord, task_id)
     if not row or row.workspace_id != user.workspace_id:
         raise HTTPException(status_code=404, detail="任务记录不存在")
+    if row.task_type == "block_ip":
+        raise HTTPException(status_code=409, detail="联动封堵记录不可删除，以防重复执行并保留审计链")
     db.delete(row)
     write_audit(db, user, "task.delete", "task", task_id, {"deleted": 1})
     db.commit()
@@ -883,6 +889,11 @@ def batch_delete_tasks(payload: IdsRequest, db: Session = Depends(get_db), user:
     ids = list(dict.fromkeys(payload.ids))
     if not ids:
         raise HTTPException(status_code=400, detail="请选择要删除的任务记录")
+    protected = db.query(TaskRecord.id).filter(
+        TaskRecord.workspace_id == user.workspace_id, TaskRecord.id.in_(ids), TaskRecord.task_type == "block_ip",
+    ).first()
+    if protected:
+        raise HTTPException(status_code=409, detail="所选任务包含不可删除的联动封堵记录")
     deleted = db.query(TaskRecord).filter(
         TaskRecord.workspace_id == user.workspace_id,
         TaskRecord.id.in_(ids),

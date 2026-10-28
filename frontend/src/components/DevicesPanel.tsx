@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Upload, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
 import { api } from '../api/client';
 import type { Device, User } from '../api/types';
@@ -28,7 +28,11 @@ function downloadBlob(blob: Blob, filename: string) {
 export default function DevicesPanel() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
+  const [scriptDeviceId, setScriptDeviceId] = useState<number | null>(null);
+  const [scriptSource, setScriptSource] = useState('');
+  const [scriptLoading, setScriptLoading] = useState(false);
   const [form] = Form.useForm();
+  const watchedDeviceRole = Form.useWatch('device_role', form);
   const queryClient = useQueryClient();
   const { data: currentUser } = useQuery({ queryKey: ['me'], queryFn: async () => (await api.get<User>('/api/auth/me')).data });
   const canManageDevices = hasRole(currentUser, 'admin');
@@ -67,6 +71,27 @@ export default function DevicesPanel() {
       message.success('设备已删除');
     },
     onError: (err: any) => message.error(err?.response?.data?.detail || '删除失败')
+  });
+  const openScriptEditor = async (deviceId: number) => {
+    setScriptLoading(true);
+    try {
+      const { data } = await api.get<{ script: string }>(`/api/devices/${deviceId}/block-script`);
+      setScriptSource(data.script || '');
+      setScriptDeviceId(deviceId);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || '读取脚本失败');
+    } finally {
+      setScriptLoading(false);
+    }
+  };
+  const saveScript = useMutation({
+    mutationFn: async () => (await api.put(`/api/devices/${scriptDeviceId}/block-script`, { script: scriptSource })).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      setScriptDeviceId(null);
+      message.success('联动封堵脚本已保存');
+    },
+    onError: (err: any) => message.error(err?.response?.data?.detail || '保存脚本失败')
   });
   const exportPackage = async (row: Device) => {
     const response = await api.get(`/api/devices/${row.id}/package`, { responseType: 'blob' });
@@ -111,6 +136,7 @@ export default function DevicesPanel() {
         { title: '产品', dataIndex: 'product', width: 180 },
         { title: '设备 IP', dataIndex: 'version', width: 140 },
         { title: '浏览器助手', dataIndex: 'browser_assistant_enabled', width: 120, render: (v: boolean) => v ? <Tag color="green">启用</Tag> : <Tag>停用</Tag> },
+        { title: '联动脚本', width: 105, render: (_: unknown, row: Device) => row.device_role === 'block' && row.has_block_script ? <Tag color="blue">已配置</Tag> : <Tag>未配置</Tag> },
         {
           title: '操作',
           width: canManageDevices ? 300 : 90,
@@ -136,6 +162,16 @@ export default function DevicesPanel() {
         <Form form={form} layout="vertical" initialValues={{ device_role: 'monitor', browser_assistant_enabled: true, browser_url_patterns_text: 'http://*/*\nhttps://*/*' }} onFinish={(values) => create.mutate(values)}>
           <Form.Item name="name" label="设备名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="device_role" label="设备类型" rules={[{ required: true }]}><Select options={deviceRoleOptions} /></Form.Item>
+          {watchedDeviceRole === 'block' && (
+            <Form.Item label="一键联动封堵脚本">
+              <Space direction="vertical" size="small">
+                <Button loading={scriptLoading} disabled={!editing || editing.device_role !== 'block'} onClick={() => editing && void openScriptEditor(editing.id)}>
+                  {editing?.has_block_script ? '编辑联动封堵脚本' : '创建联动封堵脚本'}
+                </Button>
+                <span style={{ color: '#888' }}>{editing?.device_role === 'block' ? '脚本单独保存，仅管理员可编辑；不会因选择设备而自动执行。' : '请先保存为封禁设备，再创建脚本。'}</span>
+              </Space>
+            </Form.Item>
+          )}
           <Form.Item name="vendor" label="厂商"><Input /></Form.Item>
           <Form.Item name="product" label="产品"><Input /></Form.Item>
           <Form.Item name="version" label="设备 IP"><Input placeholder="例如：10.4.6.8" /></Form.Item>
@@ -144,6 +180,17 @@ export default function DevicesPanel() {
             <Input.TextArea rows={4} placeholder="例如：https://waf.example.com/*" />
           </Form.Item>
         </Form>
+      </Modal>
+      <Modal title="联动封堵脚本（Python）" open={scriptDeviceId !== null} width={840}
+        onCancel={() => setScriptDeviceId(null)} onOk={() => saveScript.mutate()}
+        okText="保存脚本" confirmLoading={saveScript.isPending} destroyOnClose>
+        <Space direction="vertical" size="middle" className="full-width">
+          <Alert type="warning" showIcon message="仅允许可信管理员编写脚本"
+            description="脚本会在独立的低权限容器内执行，并可能访问目标设备网络。不要把设备密钥写进源码；使用 BLOCK_DEVICE_TOKEN 环境变量。保存不执行，实际联动需在告警处置时显式勾选。" />
+          <div>标准输入是一行 JSON：<code>{'{"ip":"203.0.113.5","alert_id":123,"device_id":4}'}</code>。脚本须从标准输出返回 JSON：<code>{'{"ok":true,"message":"封堵成功"}'}</code>；失败返回 <code>{'{"ok":false,"message":"原因"}'}</code>。</div>
+          <Input.TextArea rows={16} value={scriptSource} onChange={(event) => setScriptSource(event.target.value)}
+            style={{ fontFamily: 'monospace', fontSize: 13 }} placeholder={'import json, sys\nrequest = json.load(sys.stdin)\nip = request["ip"]\n# 在这里调用设备 API（仅示例；先在测试设备验证）\nprint(json.dumps({"ok": False, "message": "尚未实现设备调用"}))'} />
+        </Space>
       </Modal>
     </>
   );

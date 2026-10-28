@@ -1,14 +1,18 @@
 from datetime import datetime, timedelta
+import hashlib
+import ipaddress
 import threading
 import time
 from typing import Any
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user, require_admin, require_not_viewer
 from app.core.timezone import now as app_now
+from app.core.settings import get_settings
 from app.models.database import get_db
 from app.models.entities import AiRun, Alert, AuditLog, Device, ParseRule, Setting, User, TaskRecord
 from app.schemas.common import (
@@ -16,6 +20,7 @@ from app.schemas.common import (
     AlertBatchTransitionRequest,
     AlertClaimRequest,
     AlertCreate,
+    AlertListOut,
     AlertOut,
     AlertTransitionRequest,
     AlertUpdate,
@@ -27,13 +32,17 @@ from app.services.ai_service import investigate_threat, render_v220_alert_analys
 from app.services.alert_service import create_alert, find_duplicate_alert, normalize_alert_fields
 from app.services.audit_service import write_audit
 from app.services.task_service import create_task, fail_task, finish_task
-from app.services.workflow_constants import STATUS_ANALYSIS, STATUS_LABELS
+from app.services.workflow_constants import STATUS_ANALYSIS, STATUS_DISPOSED, STATUS_LABELS
 from app.services.workflow_service import (
     assign_alert,
     claim_alert,
     notify_alert_reaches_group,
     release_claim,
     transition_alert,
+    _assert_unstale,
+    _ensure_claim_for_transition,
+    _ensure_current_status,
+    _validate_transition,
 )
 from output.formatter import render_chat
 from integration.webhook import send_record
@@ -43,6 +52,16 @@ from app.core.utils import parse_day
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 parse_router = APIRouter(prefix="/logs", tags=["logs"])
+
+
+class AutoBlockRequest(BaseModel):
+    device_id: int
+    updated_at: datetime | None = None
+
+
+@router.get("/auto-block/capability")
+def auto_block_capability(user: User = Depends(current_user)):
+    return {"enabled": len(get_settings().block_runner_token) >= 32}
 
 # 简单的内存缓存，用于缓存告警列表查询结果（多 worker 不共享，仅防止单进程内重复查询）
 _alert_list_cache: dict[str, tuple[float, Any]] = {}
@@ -271,7 +290,7 @@ def create(payload: AlertCreate, db: Session = Depends(get_db), user: User = Dep
     return _enrich_alert(db, user, alert)
 
 
-@router.get("", response_model=list[AlertOut])
+@router.get("", response_model=list[AlertListOut])
 def list_alerts(
     response: Response,
     db: Session = Depends(get_db),
@@ -320,9 +339,14 @@ def list_alerts(
     total = query.count()
     response.headers["X-Total-Count"] = str(total)
     response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
-    rows = query.order_by(Alert.created_at.desc()).offset(offset).limit(limit).all()
+    rows = query.with_entities(
+        Alert.id, Alert.alert_hash, Alert.source_ip, Alert.destination_ip,
+        Alert.event_type, Alert.severity, Alert.status, Alert.current_group,
+        Alert.assignee_id, Alert.created_by_id, Alert.disposal_action,
+        Alert.created_at, Alert.updated_at,
+    ).order_by(Alert.created_at.desc(), Alert.id.desc()).offset(offset).limit(limit).all()
     codes = _alert_code_map(db, user, rows)
-    result = [_alert_to_dict(row, codes.get(row.id, "")) for row in rows]
+    result = [dict(row._asdict(), alert_code=codes.get(row.id, "")) for row in rows]
 
     # 缓存结果
     with _alert_cache_lock:
@@ -480,6 +504,62 @@ def transition(alert_id: int, payload: AlertTransitionRequest, db: Session = Dep
     db.commit()
     db.refresh(alert)
     return _enrich_alert(db, user, alert)
+
+
+@router.post("/{alert_id}/auto-block", status_code=202)
+def start_auto_block(alert_id: int, payload: AutoBlockRequest, db: Session = Depends(get_db), user: User = Depends(require_not_viewer)):
+    if len(get_settings().block_runner_token) < 32:
+        raise HTTPException(status_code=503, detail="一键联动尚未启用，请管理员配置 BLOCK_RUNNER_TOKEN 和隔离执行器")
+    alert = db.query(Alert).filter(Alert.id == alert_id, Alert.workspace_id == user.workspace_id).with_for_update().first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="告警不存在")
+    _ensure_current_status(alert)
+    _assert_unstale(alert, payload.updated_at)
+    _validate_transition(user, alert, STATUS_DISPOSED)
+    _ensure_claim_for_transition(user, alert, STATUS_DISPOSED)
+    if alert.disposal_action != "block" or alert.current_group != "disposal":
+        raise HTTPException(status_code=400, detail="仅处置组的封禁类告警可一键联动封堵")
+    try:
+        ip = str(ipaddress.ip_address(alert.disposal_ip))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="处置对象没有有效的单个 IP") from exc
+    device = db.query(Device).filter(Device.id == payload.device_id, Device.workspace_id == user.workspace_id).first()
+    if not device or device.device_role != "block" or not device.has_block_script:
+        raise HTTPException(status_code=400, detail="请选择已配置联动脚本的封禁设备")
+    prior = db.query(TaskRecord.id).filter(
+        TaskRecord.workspace_id == user.workspace_id,
+        TaskRecord.task_type == "block_ip",
+        TaskRecord.target_type == "alert",
+        TaskRecord.target_id == str(alert.id),
+    ).first()
+    if prior:
+        raise HTTPException(status_code=409, detail="该告警已有联动封堵记录；请先核查设备状态，避免重复封堵")
+    task = TaskRecord(
+        workspace_id=user.workspace_id, actor_id=user.id, task_type="block_ip", status="queued",
+        target_type="alert", target_id=str(alert.id),
+        input={"device_id": device.id, "ip": ip, "script_sha256": hashlib.sha256(device.block_script.encode()).hexdigest()},
+    )
+    db.add(task)
+    db.flush()
+    write_audit(db, user, "alert.auto_block_queued", "alert", alert.id, {"task_id": task.id, "device_id": device.id, "ip": ip})
+    db.commit()
+    return {"task_id": task.id, "status": "queued", "ip": ip, "device_name": device.name}
+
+
+@router.get("/{alert_id}/auto-block/latest")
+def latest_auto_block(alert_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    alert = db.query(Alert.id).filter(Alert.id == alert_id, Alert.workspace_id == user.workspace_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="告警不存在")
+    task = db.query(TaskRecord).filter(
+        TaskRecord.workspace_id == user.workspace_id, TaskRecord.task_type == "block_ip",
+        TaskRecord.target_type == "alert", TaskRecord.target_id == str(alert_id),
+    ).order_by(TaskRecord.id.desc()).first()
+    if not task:
+        return None
+    return {"id": task.id, "status": task.status, "device_id": task.input.get("device_id"),
+            "ip": task.input.get("ip"), "error": task.error, "output": task.output,
+            "created_at": task.created_at, "updated_at": task.updated_at}
 
 
 @router.post("/batch-transition")

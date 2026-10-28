@@ -73,6 +73,8 @@ def _ensure_alert_columns(db: Session) -> None:
             db.execute(text("ALTER TABLE devices ADD COLUMN browser_assistant_enabled BOOLEAN DEFAULT 1 NOT NULL"))
         if "browser_url_patterns" not in table_columns.get("devices", {}):
             db.execute(text("ALTER TABLE devices ADD COLUMN browser_url_patterns JSON DEFAULT '[\"http://*/*\",\"https://*/*\"]' NOT NULL"))
+        if "block_script" not in table_columns.get("devices", {}):
+            db.execute(text("ALTER TABLE devices ADD COLUMN block_script TEXT DEFAULT '' NOT NULL"))
         if "device_id" not in table_columns.get("templates", {}):
             db.execute(text("ALTER TABLE templates ADD COLUMN device_id INTEGER"))
         if "is_meta" not in table_columns.get("parse_rules", {}):
@@ -113,6 +115,7 @@ def _ensure_alert_columns(db: Session) -> None:
             ("devices", "device_role", "VARCHAR(40) DEFAULT 'monitor' NOT NULL"),
             ("devices", "browser_assistant_enabled", "BOOLEAN DEFAULT TRUE NOT NULL"),
             ("devices", "browser_url_patterns", "JSON DEFAULT '[\"http://*/*\",\"https://*/*\"]'::json NOT NULL"),
+            ("devices", "block_script", "TEXT DEFAULT '' NOT NULL"),
             ("templates", "device_id", "INTEGER"),
             ("parse_rules", "is_meta", "BOOLEAN DEFAULT FALSE NOT NULL"),
             ("parse_rules", "match_all", "BOOLEAN DEFAULT FALSE NOT NULL"),
@@ -1140,6 +1143,11 @@ def bootstrap_defaults(db: Session) -> None:
     _ensure_alert_columns(db)
     _ensure_message_columns(db)
     _ensure_asset_constraints(db)
+    # create_all() does not add indexes to an existing alerts table. Keep the
+    # five declared composite indexes present when upgrading older databases.
+    for index in Alert.__table__.indexes:
+        if len(index.columns) > 1:
+            index.create(bind=db.connection(), checkfirst=True)
     settings = get_settings()
     workspace = db.query(Workspace).filter_by(name="Default Workspace").first()
     if not workspace:

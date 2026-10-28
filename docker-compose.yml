@@ -26,15 +26,18 @@ services:
     restart: unless-stopped
 
   eff-api:
-    image: ${EFF_API_IMAGE:-eff-monitoring-api:v2.2.1}
+    image: ${EFF_API_IMAGE:-eff-monitoring-api:v2.2.2}
     build:
       context: .
       dockerfile: Dockerfile.backend
     env_file: .env
+    volumes:
+      - eff-backup-data:/app/backup_files
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://eff:${POSTGRES_PASSWORD:-eff_password}@eff-postgres:5432/eff_monitoring}
       REDIS_URL: ${REDIS_URL:-redis://eff-redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
     ports:
       - "${EFF_API_PORT:-8000}:8000"
     depends_on:
@@ -43,21 +46,45 @@ services:
     restart: unless-stopped
 
   eff-worker:
-    image: ${EFF_WORKER_IMAGE:-eff-monitoring-worker:v2.2.1}
+    image: ${EFF_WORKER_IMAGE:-eff-monitoring-worker:v2.2.2}
     build:
       context: .
       dockerfile: Dockerfile.backend
     env_file: .env
+    volumes:
+      - eff-backup-data:/app/backup_files
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://eff:${POSTGRES_PASSWORD:-eff_password}@eff-postgres:5432/eff_monitoring}
       REDIS_URL: ${REDIS_URL:-redis://eff-redis:6379/0}
+      BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
     command: ["python", "-m", "app.workers.worker"]
+    networks: [default, block-egress]
     depends_on:
       - eff-api
     restart: unless-stopped
 
+  eff-block-runner:
+    profiles: ["auto-block"]
+    image: ${EFF_API_IMAGE:-eff-monitoring-api:v2.2.2}
+    environment:
+      BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
+      BLOCK_DEVICE_TOKEN: ${BLOCK_DEVICE_TOKEN:-}
+      BLOCK_DEVICE_TOKENS_JSON: ${BLOCK_DEVICE_TOKENS_JSON:-}
+    command: ["uvicorn", "app.block_runner:app", "--host", "0.0.0.0", "--port", "8090"]
+    user: "65534:65534"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    networks: [block-egress]
+    restart: unless-stopped
+
   eff-web:
-    image: ${EFF_WEB_IMAGE:-eff-monitoring-web:v2.2.1}
+    image: ${EFF_WEB_IMAGE:-eff-monitoring-web:v2.2.2}
     build:
       context: .
       dockerfile: Dockerfile.frontend
@@ -72,3 +99,8 @@ services:
 volumes:
   eff-postgres-data:
   eff-redis-data:
+  eff-backup-data:
+
+networks:
+  block-egress:
+    driver: bridge

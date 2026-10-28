@@ -1,4 +1,6 @@
 import csv
+import ast
+import hashlib
 import io
 import json
 from datetime import datetime
@@ -37,6 +39,10 @@ PRIMARY_ROLE_ORDER = ["admin", "analyst", "disposer", "monitor", "viewer"]
 
 class IdsRequest(BaseModel):
     ids: list[int]
+
+
+class BlockScriptRequest(BaseModel):
+    script: str
 
 
 def _normalize_user_roles(value: list[str] | str | None, fallback: str = "analyst") -> list[str]:
@@ -197,6 +203,39 @@ def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(g
     db.commit()
     db.refresh(row)
     return row
+
+
+@router.get("/devices/{device_id}/block-script")
+def get_device_block_script(device_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin)):
+    row = db.get(Device, device_id)
+    if not row or row.workspace_id != user.workspace_id:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    if row.device_role != "block":
+        raise HTTPException(status_code=400, detail="只有封禁设备支持联动封堵脚本")
+    return {"script": row.block_script, "has_block_script": row.has_block_script}
+
+
+@router.put("/devices/{device_id}/block-script")
+def save_device_block_script(device_id: int, payload: BlockScriptRequest, db: Session = Depends(get_db), user: User = Depends(require_admin)):
+    row = db.get(Device, device_id)
+    if not row or row.workspace_id != user.workspace_id:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    if row.device_role != "block":
+        raise HTTPException(status_code=400, detail="只有封禁设备支持联动封堵脚本")
+    script = payload.script.strip()
+    if len(script.encode("utf-8")) > 32768:
+        raise HTTPException(status_code=400, detail="脚本不得超过 32 KiB")
+    if script:
+        try:
+            ast.parse(script)
+        except SyntaxError as exc:
+            raise HTTPException(status_code=400, detail=f"Python 语法错误：第 {exc.lineno} 行") from exc
+    row.block_script = script
+    write_audit(db, user, "device.block_script_update", "device", row.id, {
+        "configured": bool(script), "sha256": hashlib.sha256(script.encode()).hexdigest() if script else "",
+    })
+    db.commit()
+    return {"has_block_script": bool(script)}
 
 
 @router.delete("/devices/{device_id}")

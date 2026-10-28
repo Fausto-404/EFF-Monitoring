@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173"
     demo_user_password: str = "demo123456"
     enable_demo_data: bool = False
+    backup_dir: str = "backup_files"
+    block_runner_url: str = "http://eff-block-runner:8090/run"
+    block_runner_token: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

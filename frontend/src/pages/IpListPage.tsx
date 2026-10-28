@@ -8,7 +8,7 @@ import { api } from '../api/client';
 import HelpTip from '../components/HelpTip';
 import { isOnlyViewer } from '../utils/roles';
 
-type ListType = 'whitelist' | 'blacklist';
+type ListType = 'whitelist' | 'blacklist' | 'pending';
 type ValueType = 'single' | 'cidr' | 'range';
 
 interface IpListItem {
@@ -25,6 +25,7 @@ interface IpListItem {
 interface Lists {
   whitelist: string[];
   blacklist: string[];
+  pending_hosts: string[];
   items?: IpListItem[];
   updated_at?: string;
   deleted?: number;
@@ -37,12 +38,14 @@ interface Lists {
 
 const listTypeOptions = [
   { value: 'whitelist', label: '白名单' },
-  { value: 'blacklist', label: '黑名单' }
+  { value: 'blacklist', label: '黑名单' },
+  { value: 'pending', label: '待排查主机' }
 ];
 
 const listTypeLabel: Record<ListType, string> = {
   whitelist: '白名单',
-  blacklist: '黑名单'
+  blacklist: '黑名单',
+  pending: '待排查主机'
 };
 
 const valueTypeLabel: Record<ValueType, string> = {
@@ -97,7 +100,8 @@ export default function IpListPage() {
 
   const counts = useMemo(() => ({
     whitelist: items.filter((item) => item.list_type === 'whitelist').length,
-    blacklist: items.filter((item) => item.list_type === 'blacklist').length
+    blacklist: items.filter((item) => item.list_type === 'blacklist').length,
+    pending: items.filter((item) => item.list_type === 'pending').length
   }), [items]);
 
   const setListData = (updatedData: Lists) => {
@@ -166,7 +170,7 @@ export default function IpListPage() {
     onError: (error: any) => message.error(error?.response?.data?.detail || '导入失败')
   });
 
-  const exportTxt = async (type: 'whitelist' | 'blacklist' | 'all') => {
+  const exportTxt = async (type: ListType | 'all') => {
     const response = await api.get('/api/ip-lists/export.txt', { params: { type }, responseType: 'blob' });
     const blob = new Blob([response.data], { type: 'text/plain;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
@@ -187,6 +191,7 @@ export default function IpListPage() {
         <Space wrap>
           <Button icon={<DownloadOutlined />} onClick={() => exportTxt('whitelist')}>导出白名单</Button>
           <Button icon={<DownloadOutlined />} onClick={() => exportTxt('blacklist')}>导出黑名单</Button>
+          <Button icon={<DownloadOutlined />} onClick={() => exportTxt('pending')}>导出待排查主机</Button>
           <Button icon={<DownloadOutlined />} onClick={() => exportTxt('all')}>导出全部</Button>
           {!isViewer && <Button icon={<UploadOutlined />} onClick={() => { setImportOpen(true); setImportResult(null); importForm.setFieldsValue({ list_type: 'blacklist' }); }}>批量导入</Button>}
           {!isViewer && <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>新增名单项</Button>}
@@ -197,7 +202,7 @@ export default function IpListPage() {
         <Typography.Title level={5}>IP 范围检测 <HelpTip title="输入单个 IP 后，系统会检查它是否落在白名单或黑名单的单 IP、CIDR、范围或简写范围中。" /></Typography.Title>
         <Space direction="vertical" className="full-width">
           <Space wrap>
-            <Input value={searchIp} onChange={(event) => setSearchIp(event.target.value)} placeholder="输入 IP，检测是否命中白/黑名单范围" style={{ width: 360 }} />
+            <Input value={searchIp} onChange={(event) => setSearchIp(event.target.value)} placeholder="输入 IP，检测名单及待排查状态" style={{ width: 360 }} />
             <Button type="primary" loading={check.isPending} disabled={!searchIp} onClick={() => check.mutate()}>检测 IP</Button>
           </Space>
           {searchResult && (
@@ -205,7 +210,7 @@ export default function IpListPage() {
               type={searchResult.matched ? 'warning' : 'success'}
               showIcon
               message={searchResult.matched ? `${searchResult.ip} 命中名单` : `${searchResult.ip} 未命中名单`}
-              description={<Space wrap>{searchResult.matches.map((item) => <Tag color={item.list === 'blacklist' ? 'red' : 'blue'} key={`${item.list}-${item.range}`}>{item.label}: {item.range}</Tag>)}</Space>}
+              description={<Space wrap>{searchResult.matches.map((item) => <Tag color={item.list === 'blacklist' ? 'red' : item.list === 'pending' ? 'orange' : 'blue'} key={`${item.list}-${item.range}`}>{item.label}: {item.range}</Tag>)}</Space>}
             />
           )}
         </Space>
@@ -218,6 +223,7 @@ export default function IpListPage() {
           <Select allowClear placeholder="值类型" value={valueType} onChange={setValueType} style={{ width: 120 }} options={Object.entries(valueTypeLabel).map(([value, label]) => ({ value, label }))} />
           <Tag color="blue">白名单 {counts.whitelist}</Tag>
           <Tag color="red">黑名单 {counts.blacklist}</Tag>
+          <Tag color="orange">待排查主机 {counts.pending}</Tag>
           <Typography.Text type="secondary">已选择 {selectedRowKeys.length} 项</Typography.Text>
           {!isViewer && selectedRowKeys.length > 0 && (
             <Popconfirm title={`确定删除选中的 ${selectedRowKeys.length} 个名单项？`} onConfirm={() => batchRemove.mutate()}>
@@ -235,7 +241,7 @@ export default function IpListPage() {
         rowSelection={isViewer ? undefined : { selectedRowKeys, onChange: setSelectedRowKeys }}
         pagination={{ pageSizeOptions: ['10', '20', '50', '100'], showSizeChanger: true }}
         columns={[
-          { title: '名单', dataIndex: 'list_type', width: 100, render: (value: ListType) => <Tag color={value === 'blacklist' ? 'red' : 'blue'}>{listTypeLabel[value]}</Tag> },
+          { title: '名单', dataIndex: 'list_type', width: 120, render: (value: ListType) => <Tag color={value === 'blacklist' ? 'red' : value === 'pending' ? 'orange' : 'blue'}>{listTypeLabel[value]}</Tag> },
           { title: 'IP / CIDR / 范围', dataIndex: 'value', width: 220, render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
           { title: '类型', dataIndex: 'value_type', width: 100, render: (value: ValueType) => valueTypeLabel[value] || value },
           { title: '来源', dataIndex: 'source', width: 110, render: (value: string) => sourceLabel[value] || value || '-' },

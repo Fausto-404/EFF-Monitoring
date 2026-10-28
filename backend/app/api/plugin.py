@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 import time
+import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import current_user
+from app.api.deps import current_user, require_not_viewer, user_roles
 from app.core.security import decode_access_token
 from app.core.timezone import now
 from app.models.bootstrap import get_effective_setting
 from app.models.database import get_db
-from app.models.entities import AiRun, Alert, Device, PluginAccessToken, Template, User
+from app.models.entities import AiRun, Alert, Device, PluginAccessToken, PluginAlertRequest, Template, User
 from app.services.ai_service import investigate_threat
 from app.services.alert_service import create_alert, normalize_alert_fields
 from app.services.parser_service import parse_text_for_user
@@ -57,6 +60,7 @@ def _authenticate_plugin_user(
     db: Session,
     credentials: HTTPAuthorizationCredentials | None,
     required_scopes: set[str],
+    request: Request,
 ) -> User:
     token = credentials.credentials.strip() if credentials else ""
     if not token:
@@ -67,6 +71,12 @@ def _authenticate_plugin_user(
         user = db.get(User, int(jwt_payload["sub"]))
         if not user or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效用户")
+        scopes = set(PLUGIN_SCOPES)
+        if user_roles(user) <= {"viewer"}:
+            scopes.discard("plugin:alert:create")
+        if not required_scopes.issubset(scopes):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="当前用户无权创建工单")
+        request.state.plugin_scopes = scopes
         return user
 
     row = db.query(PluginAccessToken).filter_by(token_hash=_token_hash(token)).first()
@@ -76,13 +86,17 @@ def _authenticate_plugin_user(
     if row.expires_at and row.expires_at < current:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="插件密钥已过期")
     scopes = set(row.scopes or [])
+    user = db.get(User, row.created_by_id) if row.created_by_id else None
+    if not user or not user.is_active or user.workspace_id != row.workspace_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="插件密钥缺少可用用户上下文")
+    if user_roles(user) <= {"viewer"}:
+        scopes.discard("plugin:alert:create")
     if not required_scopes.issubset(scopes):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="插件密钥权限不足")
-    user = db.get(User, row.created_by_id) if row.created_by_id else None
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="插件密钥缺少可用用户上下文")
-    row.last_used_at = current
-    db.commit()
+    request.state.plugin_scopes = scopes
+    if not row.last_used_at or (current - row.last_used_at).total_seconds() >= 60:
+        row.last_used_at = current
+        db.commit()
     return user
 
 
@@ -90,10 +104,11 @@ def plugin_user(*scopes: str):
     required = set(scopes)
 
     def dependency(
+        request: Request,
         db: Session = Depends(get_db),
         credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     ) -> User:
-        return _authenticate_plugin_user(db, credentials, required)
+        return _authenticate_plugin_user(db, credentials, required, request)
 
     return dependency
 
@@ -176,15 +191,18 @@ def _source_context_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/me")
-def plugin_me(db: Session = Depends(get_db), user: User = Depends(plugin_user())):
+def plugin_me(request: Request, db: Session = Depends(get_db), user: User = Depends(plugin_user())):
     ai_settings = get_effective_setting(db, user.workspace_id, user.id, "ai") or {}
+    scopes = request.state.plugin_scopes
     return {
         "platform": "EFF-Monitoring",
-        "version": "2.2.1",
+        "version": "2.2.2",
         "workspace": {"id": user.workspace_id},
         "user": {"id": user.id, "username": user.username, "display_name": user.display_name},
+        "scopes": sorted(scopes),
         "capabilities": {
             "platform_ai": bool(ai_settings),
+            "ticket_creation": {"plugin:devices:read", "plugin:parse", "plugin:alert:create"}.issubset(scopes),
             "quick_ai_independent": True,
             "smart_investigation": True,
             "pat_auth": True,
@@ -224,11 +242,70 @@ def plugin_templates(
 
 @router.post("/parse")
 def plugin_parse(payload: dict[str, Any], db: Session = Depends(get_db), user: User = Depends(plugin_user("plugin:parse"))):
+    _validate_page_text(payload)
     return _parse_page_payload(db, user, payload)
+
+
+def _validate_page_text(payload: dict[str, Any]) -> None:
+    text = str(payload.get("text") or "")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="未获取到告警页面文本，请刷新页面后重试")
+    if len(text.encode("utf-8")) > 512 * 1024:
+        raise HTTPException(status_code=413, detail="页面文本超过 512 KiB，请缩小到单条告警后重试")
+
+
+def _ticket_response(alert: Alert, parsed: dict[str, Any] | None = None, cached: dict[str, Any] | None = None) -> dict[str, Any]:
+    extra = cached or {}
+    if parsed:
+        extra = {key: parsed.get(key) for key in ("device", "formatted_chat", "formatted_excel", "src_context", "dst_context")}
+    return {
+        "id": alert.id,
+        "alert_id": alert.id,
+        "alert_hash": alert.alert_hash,
+        "status": alert.status,
+        "device": extra.get("device"),
+        "fields": alert.parsed_fields or {},
+        "formatted_chat": extra.get("formatted_chat") or "",
+        "formatted_excel": extra.get("formatted_excel") or "",
+        "src_context": extra.get("src_context") or {},
+        "dst_context": extra.get("dst_context") or {},
+        "source_context": alert.source_context or {},
+        "workbench_url": f"/?page=alerts&alert_hash={alert.alert_hash}",
+    }
 
 
 @router.post("/alerts")
 def plugin_create_alert(payload: dict[str, Any], db: Session = Depends(get_db), user: User = Depends(plugin_user("plugin:alert:create"))):
+    request_key = str(payload.get("request_id") or "").strip()
+    payload_hash = hashlib.sha256(json.dumps({
+        "text": str(payload.get("text") or ""),
+        "device_id": payload.get("device_id"),
+        "message_template_id": payload.get("message_template_id"),
+    }, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+    ledger = None
+    if request_key:
+        try:
+            request_key = str(uuid.UUID(request_key))
+        except (ValueError, AttributeError) as exc:
+            raise HTTPException(status_code=400, detail="工单请求标识必须是 UUID") from exc
+        ledger = PluginAlertRequest(workspace_id=user.workspace_id, actor_id=user.id, request_key=request_key, payload_hash=payload_hash)
+        db.add(ledger)
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            prior = db.query(PluginAlertRequest).filter_by(
+                workspace_id=user.workspace_id, actor_id=user.id, request_key=request_key,
+            ).first()
+            if not prior or not prior.alert_id:
+                raise HTTPException(status_code=503, detail="同一工单请求仍在处理中，请稍后重试")
+            if prior.payload_hash != payload_hash:
+                raise HTTPException(status_code=409, detail="请求标识已用于不同的告警内容，请刷新页面后重试")
+            prior_alert = db.get(Alert, prior.alert_id)
+            if not prior_alert or prior_alert.alert_hash != prior.alert_hash:
+                raise HTTPException(status_code=409, detail="原工单已删除，请刷新告警页面后重新创建")
+            return _ticket_response(prior_alert, cached=prior.response)
+    _validate_page_text(payload)
     parsed = _parse_page_payload(db, user, payload)
     source_context = _source_context_from_payload(payload)
     alert = create_alert(
@@ -254,22 +331,13 @@ def plugin_create_alert(payload: dict[str, Any], db: Session = Depends(get_db), 
         },
     )
     notify_alert_reaches_group(db, alert, alert.current_group, actor=user)
+    response = _ticket_response(alert, parsed=parsed)
+    if ledger:
+        ledger.alert_id = alert.id
+        ledger.alert_hash = alert.alert_hash
+        ledger.response = {key: response[key] for key in ("device", "formatted_chat", "formatted_excel", "src_context", "dst_context")}
     db.commit()
-    db.refresh(alert)
-    return {
-        "id": alert.id,
-        "alert_id": alert.id,
-        "alert_hash": alert.alert_hash,
-        "status": alert.status,
-        "device": parsed.get("device"),
-        "fields": parsed.get("fields") or {},
-        "formatted_chat": parsed.get("formatted_chat") or "",
-        "formatted_excel": parsed.get("formatted_excel") or "",
-        "src_context": parsed.get("src_context") or {},
-        "dst_context": parsed.get("dst_context") or {},
-        "source_context": alert.source_context or {},
-        "workbench_url": f"/alerts?alert_id={alert.id}",
-    }
+    return response
 
 
 @router.post("/alerts/{alert_id}/send-webhook")
@@ -370,7 +438,7 @@ def plugin_investigate(payload: dict[str, Any], db: Session = Depends(get_db), u
 
 
 @router.post("/tokens")
-def create_plugin_token(payload: dict[str, Any], db: Session = Depends(get_db), user: User = Depends(current_user)):
+def create_plugin_token(payload: dict[str, Any], db: Session = Depends(get_db), user: User = Depends(require_not_viewer)):
     scopes = payload.get("scopes") or sorted(PLUGIN_SCOPES)
     scopes = [str(item) for item in scopes if str(item) in PLUGIN_SCOPES]
     if not scopes:

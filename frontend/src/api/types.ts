@@ -85,6 +85,7 @@ export interface Device {
   device_role: string;
   browser_assistant_enabled: boolean;
   browser_url_patterns: string[];
+  has_block_script: boolean;
 }
 
 export interface Asset {

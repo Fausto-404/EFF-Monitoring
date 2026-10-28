@@ -29,6 +29,8 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款面向安全运�
 **详细功能操作与最佳实践请查看：** [操作手册.md](./操作手册.md)  
 **浏览器插件请查看：** [EFF-Assistant](https://github.com/Fausto-404/EFF-Assistant)
 
+插件建单请使用 EFF-Assistant v1.1.1 或更新版本，并将平台地址配置为前端访问地址（默认 `http://localhost:8080`，此地址同时代理 `/api/`）；仅填写 `8000` API 端口会导致工作台跳转失败。个人 PAT 需同时具备 `plugin:devices:read`、`plugin:parse`、`plugin:alert:create`，且创建该密钥的账号必须保持启用、拥有写入角色。v2.2.2 插件接口支持请求标识幂等：请求超时后按原请求重试不会重复生成工单。
+
 ## 平台价值
 + **统一解析**：将不同设备、不同格式的原始日志转换为标准研判字段。
 + **资产关联**：统一化管理并关联资产、威胁情报、黑白名单、告警信息等内容。
@@ -110,15 +112,16 @@ EFF-Monitoring/
 ```
 
 ## 快速启动
+
 ### Docker 一键部署
 
 #### 方式一：Git 一条命令部署（推荐）
 
 ```bash
-git clone --depth 1 --branch v2.2.1 https://github.com/Fausto-404/EFF-Monitoring.git && cd EFF-Monitoring && ./install.sh
+git clone --depth 1 --branch v2.2.2 https://github.com/Fausto-404/EFF-Monitoring.git && cd EFF-Monitoring && ./install.sh
 ```
 
-`install.sh` 会检测 CPU 架构：ARM64 自动下载 `eff-monitoring-v2.2.1-images-arm.tar`，amd64/x86_64 自动下载 `eff-monitoring-v2.2.1-images-amd.tar`，然后导入镜像并自动生成安全密码。
+`install.sh` 会检测 CPU 架构：ARM64 自动下载 `eff-monitoring-v2.2.2-images-arm.tar`，amd64/x86_64 自动下载 `eff-monitoring-v2.2.2-images-amd.tar`，校验 Release 中对应的 SHA-256 文件后导入镜像并自动生成安全密码。默认使用独立的 `eff-monitoring-v2-2-2` Compose 项目及数据卷；从旧版升级前请先导出备份，再在新版中还原。
 
 脚本会在启动前检查 Docker、磁盘空间、CPU 架构和端口；默认使用 8000（API）和 8080（前端），端口被占用时会自动选择下一个可用端口，也可以手动指定：
 
@@ -126,14 +129,14 @@ git clone --depth 1 --branch v2.2.1 https://github.com/Fausto-404/EFF-Monitoring
 ./install.sh --api-port 8001 --web-port 8081
 ```
 
-离线镜像包需要与目标机器 CPU 架构一致。Release 中应同时上传 `arm` 和 `amd` 两个架构的镜像包。
+离线镜像包需要与目标机器 CPU 架构一致。Release 同时提供 `arm` 和 `amd` 两个架构的镜像包。
 
 #### 方式二：已有离线镜像包部署
 
 如果已经将镜像包下载到本地：
 
 ```bash
-./deploy.sh --offline /path/to/eff-monitoring-v2.2.1-images.tar
+./deploy.sh --offline /path/to/eff-monitoring-v2.2.2-images-arm.tar
 ```
 
 该方式不会下载任何镜像，也不会执行镜像构建。
@@ -168,8 +171,8 @@ docker compose up -d --build
 发布制作者可按目标机器架构制作离线包：
 
 ```bash
-./scripts/export-images.sh --platform linux/amd64 --output ./eff-monitoring-v2.2.1-images-amd.tar
-./scripts/export-images.sh --platform linux/arm64 --output ./eff-monitoring-v2.2.1-images-arm.tar
+./scripts/export-images.sh --platform linux/amd64 --output ./eff-monitoring-v2.2.2-images-amd.tar
+./scripts/export-images.sh --platform linux/arm64 --output ./eff-monitoring-v2.2.2-images-arm.tar
 ```
 
 打包脚本会在导出前校验镜像架构，普通用户不需要执行。
@@ -326,6 +329,22 @@ ENABLE_DEMO_DATA=true
 ## 更新记录
 
 <details>
+<summary><strong>v2.2.2</strong></summary>
+
+- 告警工作台列表改为轻量查询与传输，点击时再加载完整详情；搜索增加防抖和过期请求取消。
+- 备份导出改为后台任务，支持进度、跨页面查看和完成后下载；API/Worker 共用持久化备份卷。
+- 系统管理新增备份任务管理列表，支持按状态筛选、分页、刷新和删除已结束任务；删除会同时清理服务器备份文件，操作前请先下载留存。
+- 白名单 IP 的封禁联动改为保留白名单、加入待排查主机名单并广播“疑似失陷”；非白名单 IP 仍进入黑名单。
+- 新增可选的一键联动封堵：封禁设备可配置管理员专用 Python 脚本；单条告警经二次确认后交由独立低权限容器执行，成功自动闭环，失败或状态未知不自动重试。
+- 插件建单增加请求标识幂等与失败重试保护，降低连接正常但工单未创建、重试造成重复工单的风险。
+- 升级前端依赖并清除已知 npm 安全告警；锁文件改用 npm 官方仓库地址。
+- IP 名单、检测和告警/资产标签展示待排查状态；Nginx 开启 JSON 压缩，上传上限调整为 1g。
+
+已在隔离环境使用 545 MiB 历史备份验证告警工作台、备份导出及白名单处置流程。大文件还原仍会整体解析 JSON，请在内存充足的环境执行；生产环境的实际性能应按本单位数据规模验收。
+
+</details>
+
+<details>
 <summary><strong>v2.2.1</strong></summary>
 
 ### 修复
@@ -335,6 +354,7 @@ ENABLE_DEMO_DATA=true
 - **资产 IP 名单展示**：告警详情显示源资产和目的资产的白名单/黑名单匹配状态。
 - **表格列宽调整**：支持拖拽调整告警工作台列宽。
 - **分页支持 1000 条/页**：方便批量查看和导出告警。
+- **告警数据合并**：支持从 CSV 文件导入 136 条告警数据到备份内容。
 
 ### 性能优化
 

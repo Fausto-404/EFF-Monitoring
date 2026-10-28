@@ -12,6 +12,10 @@ import HelpTip from '../components/HelpTip';
 import CollapsibleBlock from '../components/CollapsibleBlock';
 
 type ColumnWidths = Record<string, number>;
+type AlertSummary = Pick<Alert,
+  'id' | 'alert_code' | 'alert_hash' | 'source_ip' | 'destination_ip' |
+  'event_type' | 'severity' | 'status' | 'current_group' | 'assignee_id' |
+  'created_by_id' | 'disposal_action' | 'created_at' | 'updated_at'>;
 
 // 列宽调整 Hook：只在独立手柄上启动拖拽，避免点击表头触发调整。
 function useColumnWidths(initialWidths: ColumnWidths) {
@@ -377,8 +381,8 @@ function AssetCard({ title, asset }: { title: string; asset?: Record<string, any
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>IP 名单：</Typography.Text>
             <Space wrap size={4}>
               {ipMatches.map((item: any, idx: number) => (
-                <Tag key={idx} color={item.list === 'blacklist' ? 'red' : 'blue'}>
-                  {item.list === 'blacklist' ? '黑名单' : '白名单'}: {item.range}
+                <Tag key={idx} color={item.list === 'blacklist' ? 'red' : item.list === 'pending' ? 'orange' : 'blue'}>
+                  {item.list === 'blacklist' ? '黑名单' : item.list === 'pending' ? '待排查主机' : '白名单'}: {item.range}
                 </Tag>
               ))}
             </Space>
@@ -390,22 +394,22 @@ function AssetCard({ title, asset }: { title: string; asset?: Record<string, any
   );
 }
 
-function isTerminal(alert: Alert) {
+function isTerminal(alert: AlertSummary) {
   return ['false_positive', 'ignored', 'disposed'].includes(alert.status);
 }
 
-function canClaim(user: User | undefined, alert: Alert) {
+function canClaim(user: User | undefined, alert: AlertSummary) {
   if (!user || isTerminal(alert) || alert.assignee_id) return false;
   if (hasRole(user, 'admin')) return ['analysis', 'disposal'].includes(alert.current_group);
   return hasRole(user, groupRole[alert.current_group]);
 }
 
-function canRelease(user: User | undefined, alert: Alert) {
+function canRelease(user: User | undefined, alert: AlertSummary) {
   if (!user || isTerminal(alert) || !alert.assignee_id) return false;
   return hasRole(user, 'admin') || alert.assignee_id === user.id;
 }
 
-function availableStatuses(user: User | undefined, alert: Alert) {
+function availableStatuses(user: User | undefined, alert: AlertSummary) {
   if (!user) return [];
   if (hasRole(user, 'admin')) {
     return ['analysis', 'disposal', 'false_positive', 'ignored', 'disposed'].filter(s => s !== alert.status);
@@ -431,7 +435,7 @@ function availableStatuses(user: User | undefined, alert: Alert) {
   return Array.from(new Set(statuses));
 }
 
-function commonAvailableStatuses(user: User | undefined, alerts: Alert[]) {
+function commonAvailableStatuses(user: User | undefined, alerts: AlertSummary[]) {
   if (!alerts.length) return [];
   const [first, ...rest] = alerts;
   return availableStatuses(user, first).filter((status) =>
@@ -439,13 +443,13 @@ function commonAvailableStatuses(user: User | undefined, alerts: Alert[]) {
   );
 }
 
-function ownerDisplay(alert: Alert, users: User[]) {
+function ownerDisplay(alert: AlertSummary, users: User[]) {
   if (!alert.assignee_id) return '未认领';
   const user = users.find((item) => item.id === alert.assignee_id);
   return `${groupLabel[alert.current_group] || ''}-${user?.display_name || '未知'}`;
 }
 
-type TransitionState = { alerts: Alert[]; mode: 'single' | 'batch' } | null;
+type TransitionState = { alerts: AlertSummary[]; mode: 'single' | 'batch' } | null;
 
 export default function AlertWorkbench({
   initialAlertHash,
@@ -456,6 +460,7 @@ export default function AlertWorkbench({
 }) {
   const [selected, setSelected] = useState<Alert | null>(null);
   const [q, setQ] = useState(initialAlertHash || '');
+  const [debouncedQ, setDebouncedQ] = useState(initialAlertHash || '');
   const [dismissedAutoHash, setDismissedAutoHash] = useState('');
   const [status, setStatus] = useState<string | undefined>();
   const [currentGroup, setCurrentGroup] = useState<string | undefined>();
@@ -464,7 +469,7 @@ export default function AlertWorkbench({
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
   const [csvTemplateId, setCsvTemplateId] = useState<number | undefined>();
   const [transitionState, setTransitionState] = useState<TransitionState>(null);
-  const [assignTarget, setAssignTarget] = useState<Alert | null>(null);
+  const [assignTarget, setAssignTarget] = useState<AlertSummary | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(30_000);
@@ -475,6 +480,7 @@ export default function AlertWorkbench({
   const watchedStatus = Form.useWatch('status', transitionForm);
   const watchedClosureAction = Form.useWatch('closure_action', transitionForm);
   const watchedBlockDeviceIds = Form.useWatch('block_device_ids', transitionForm);
+  const watchedAutoBlock = Form.useWatch('auto_block', transitionForm);
   const queryClient = useQueryClient();
 
   const copyText = async (text?: string) => {
@@ -526,6 +532,11 @@ export default function AlertWorkbench({
     }
   }, [initialAlertHash]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQ(q), 350);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
   const { data: currentUser } = useQuery({
     queryKey: ['me'],
     queryFn: async () => (await api.get<User>('/api/auth/me')).data
@@ -535,12 +546,13 @@ export default function AlertWorkbench({
 
   const alertStart = range?.[0]?.format('YYYY-MM-DD HH:mm:ss');
   const alertEnd = range?.[1]?.format('YYYY-MM-DD HH:mm:ss');
-  const { data: alertPage = { rows: [], total: 0 }, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['alerts', q, status, currentGroup, assigneeId, alertStart, alertEnd, page, pageSize],
-    queryFn: async () => {
-      const res = await api.get<Alert[]>('/api/alerts', {
+  const { data: alertPage = { rows: [], total: 0 }, isLoading, isFetching, refetch } = useQuery<{ rows: AlertSummary[]; total: number }>({
+    queryKey: ['alerts', debouncedQ, status, currentGroup, assigneeId, alertStart, alertEnd, page, pageSize],
+    queryFn: async ({ signal }) => {
+      const res = await api.get<AlertSummary[]>('/api/alerts', {
+      signal,
       params: {
-        q,
+        q: debouncedQ,
         status,
         current_group: currentGroup,
         assignee_id: assigneeId,
@@ -556,10 +568,24 @@ export default function AlertWorkbench({
     refetchInterval: autoRefresh ? refreshInterval : false
   });
   const data = alertPage.rows;
+  const openDetail = useCallback(async (alert: AlertSummary) => {
+    try {
+      const response = await api.get<Alert>(`/api/alerts/${alert.id}`);
+      setSelected(response.data);
+    } catch {
+      message.error('告警详情加载失败');
+    }
+  }, []);
   const { data: history = [] } = useQuery({
     queryKey: ['alerts', selected?.id, 'history'],
     queryFn: async () => (await api.get<any[]>(`/api/alerts/${selected?.id}/history`)).data,
     enabled: !!selected
+  });
+  const { data: autoBlockTask } = useQuery({
+    queryKey: ['alerts', selected?.id, 'auto-block'],
+    queryFn: async () => (await api.get<{ id: number; status: string; ip: string; error: string; output: { message?: string; unknown?: boolean } } | null>(`/api/alerts/${selected?.id}/auto-block/latest`)).data,
+    enabled: !!selected,
+    refetchInterval: (query) => ['queued', 'running'].includes(query.state.data?.status || '') ? 3000 : false
   });
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -570,6 +596,11 @@ export default function AlertWorkbench({
     queryKey: ['devices'],
     queryFn: async () => (await api.get<Device[]>('/api/devices')).data,
     staleTime: 5 * 60 * 1000  // 5分钟缓存
+  });
+  const { data: autoBlockCapability } = useQuery({
+    queryKey: ['auto-block-capability'],
+    queryFn: async () => (await api.get<{ enabled: boolean }>('/api/alerts/auto-block/capability')).data,
+    staleTime: 60_000
   });
   const { data: templates = [] } = useQuery({
     queryKey: ['templates'],
@@ -593,9 +624,9 @@ export default function AlertWorkbench({
     if (!initialAlertHash || dismissedAutoHash === initialAlertHash) return;
     const hit = data.find((item) => item.alert_hash === initialAlertHash);
     if (hit) {
-      setSelected(hit);
+      void openDetail(hit);
     }
-  }, [data, dismissedAutoHash, initialAlertHash]);
+  }, [data, dismissedAutoHash, initialAlertHash, openDetail]);
 
   useEffect(() => {
     setPage(1);
@@ -605,7 +636,9 @@ export default function AlertWorkbench({
     if (!selected) return;
     const latest = data.find((item) => item.id === selected.id);
     if (latest && latest.updated_at !== selected.updated_at) {
-      setSelected(latest);
+      void api.get<Alert>(`/api/alerts/${latest.id}`).then(({ data: detail }) => {
+        setSelected((current) => current?.id === detail.id ? detail : current);
+      }).catch(() => message.error('告警详情刷新失败'));
       // 同步更新 transitionState 中的 alert 对象
       setTransitionState((current) => {
         if (!current) return null;
@@ -625,8 +658,16 @@ export default function AlertWorkbench({
     if (alert) queryClient.invalidateQueries({ queryKey: ['alerts', alert.id, 'history'] });
   };
 
+  useEffect(() => {
+    if (autoBlockTask?.status !== 'success' || !selected?.id) return;
+    queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    void api.get<Alert>(`/api/alerts/${selected.id}`).then(({ data: detail }) => {
+      setSelected((current) => current?.id === detail.id ? detail : current);
+    });
+  }, [autoBlockTask?.status, selected?.id, queryClient]);
+
   const claim = useMutation({
-    mutationFn: async (alert: Alert) => (await api.post<Alert>(`/api/alerts/${alert.id}/claim`, { updated_at: alert.updated_at })).data,
+    mutationFn: async (alert: AlertSummary) => (await api.post<Alert>(`/api/alerts/${alert.id}/claim`, { updated_at: alert.updated_at })).data,
     onSuccess: (alert) => {
       refreshAlertState(alert);
       message.success('已认领告警');
@@ -641,7 +682,7 @@ export default function AlertWorkbench({
   });
 
   const release = useMutation({
-    mutationFn: async ({ alert, force }: { alert: Alert; force?: boolean }) =>
+    mutationFn: async ({ alert, force }: { alert: AlertSummary; force?: boolean }) =>
       (await api.post<Alert>(`/api/alerts/${alert.id}/${force ? 'force-release' : 'release-claim'}`, { updated_at: alert.updated_at })).data,
     onSuccess: (alert) => {
       refreshAlertState(alert);
@@ -651,7 +692,7 @@ export default function AlertWorkbench({
   });
 
   const assign = useMutation({
-    mutationFn: async (payload: { alert: Alert; assignee_id: number }) =>
+    mutationFn: async (payload: { alert: AlertSummary; assignee_id: number }) =>
       (await api.post<Alert>(`/api/alerts/${payload.alert.id}/assign`, { assignee_id: payload.assignee_id, updated_at: payload.alert.updated_at })).data,
     onSuccess: (alert) => {
       setAssignTarget(null);
@@ -665,6 +706,13 @@ export default function AlertWorkbench({
   const transition = useMutation({
     mutationFn: async (values: any) => {
       if (!transitionState) return null;
+      if (values.auto_block && transitionState.mode === 'single') {
+        const alert = transitionState.alerts[0];
+        const result = (await api.post(`/api/alerts/${alert.id}/auto-block`, {
+          device_id: values.block_device_ids[0], updated_at: alert.updated_at
+        })).data;
+        return { auto_block_job: result };
+      }
       if (transitionState.mode === 'batch') {
         return (await api.post('/api/alerts/batch-transition', { ids: transitionState.alerts.map((item) => item.id), ...values })).data;
       }
@@ -672,12 +720,15 @@ export default function AlertWorkbench({
       return (await api.post<Alert>(`/api/alerts/${alert.id}/transition`, { ...values, updated_at: alert.updated_at })).data;
     },
     onSuccess: (result: any) => {
-      if (result?.errors?.length) {
+      if (result?.auto_block_job) {
+        message.success('联动封堵任务已提交；设备确认成功后将自动流转为已处置');
+        if (transitionState?.alerts[0]) void openDetail(transitionState.alerts[0]);
+      } else if (result?.errors?.length) {
         message.warning(`批量流转完成：成功 ${result.updated} 条，失败 ${result.errors.length} 条`);
       } else {
         message.success(transitionState?.mode === 'batch' ? '批量流转完成' : '状态已流转');
       }
-      if (result && !result.errors) refreshAlertState(result as Alert);
+      if (result && !result.errors && !result.auto_block_job) refreshAlertState(result as Alert);
       else refreshAlertState();
       setTransitionState(null);
       setSelectedRowKeys([]);
@@ -772,7 +823,7 @@ export default function AlertWorkbench({
     window.URL.revokeObjectURL(url);
   };
 
-  const openTransition = (alerts: Alert[], mode: 'single' | 'batch') => {
+  const openTransition = (alerts: AlertSummary[], mode: 'single' | 'batch') => {
     if (!alerts.length) return;
     const options = mode === 'single' ? availableStatuses(currentUser, alerts[0]) : commonAvailableStatuses(currentUser, alerts);
     if (!options.length) {
@@ -787,6 +838,7 @@ export default function AlertWorkbench({
       closure_target: 'src_ip',
       false_positive_reason: '',
       block_device_ids: [],
+      auto_block: false,
       block_at: dayjs(),
       response_note: '',
       response_owner_id: undefined
@@ -892,7 +944,7 @@ export default function AlertWorkbench({
         title: <ResizableHeader label="状态" columnKey="status" onResize={onResize} onReset={resetWidth} />,
         dataIndex: 'status',
         width: columnWidths.status,
-        render: (v: string, row: Alert) => (
+        render: (v: string, row: AlertSummary) => (
           <Space direction="vertical" size={2}>
             <Tag color={statusColor[v]}>{statusLabel[v] || v}</Tag>
             {!isTerminal(row) && <Tag color={row.assignee_id ? 'green' : 'orange'}>{row.assignee_id ? '已认领' : '未认领'}</Tag>}
@@ -903,12 +955,12 @@ export default function AlertWorkbench({
         title: <ResizableHeader label="负责人" columnKey="assignee_id" onResize={onResize} onReset={resetWidth} />,
         dataIndex: 'assignee_id',
         width: columnWidths.assignee_id,
-        render: (_: number | null, row: Alert) => <Typography.Text className="table-nowrap">{ownerDisplay(row, users)}</Typography.Text>
+        render: (_: number | null, row: AlertSummary) => <Typography.Text className="table-nowrap">{ownerDisplay(row, users)}</Typography.Text>
       },
       {
         title: <ResizableHeader label="操作" columnKey="actions" onResize={onResize} onReset={resetWidth} />,
         width: columnWidths.actions,
-        render: (_: unknown, row: Alert) => {
+        render: (_: unknown, row: AlertSummary) => {
           const transitions = availableStatuses(currentUser, row);
           return (
             <div className="table-action-grid">
@@ -916,7 +968,7 @@ export default function AlertWorkbench({
               {!isViewer && canRelease(currentUser, row) && <Button size="small" loading={release.isPending} onClick={() => release.mutate({ alert: row })}>释放</Button>}
               {!isViewer && transitions.length > 0 && <Button size="small" onClick={() => openTransition([row], 'single')}>流转</Button>}
               {isAdmin && !isTerminal(row) && <Button size="small" onClick={() => { setAssignTarget(row); assignForm.resetFields(); }}>指派</Button>}
-              <Button size="small" onClick={() => setSelected(row)}>详情</Button>
+              <Button size="small" onClick={() => void openDetail(row)}>详情</Button>
               {isAdmin && (
                 <Popconfirm title="删除该告警？" onConfirm={() => remove.mutate(row.id)}>
                   <Button size="small" danger>删除</Button>
@@ -1136,6 +1188,14 @@ export default function AlertWorkbench({
                           <Descriptions.Item label="处置IP">{selected.disposal_ip || '-'}</Descriptions.Item>
                           <Descriptions.Item label="封禁时间">{selected.block_at ? dayjs(selected.block_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
                           <Descriptions.Item label="封禁位置" span={2}>{selected.block_device_ids?.length ? selected.block_device_ids.map((id) => deviceName(id)).join('、') : '-'}</Descriptions.Item>
+                          {autoBlockTask && <Descriptions.Item label="联动封堵" span={2}>
+                            <Space direction="vertical" size={0}>
+                              <Tag color={autoBlockTask.status === 'success' ? 'success' : autoBlockTask.status === 'failed' ? 'error' : 'processing'}>
+                                {autoBlockTask.status === 'success' ? '封堵成功' : autoBlockTask.status === 'failed' ? '封堵失败 / 待核查' : '联动执行中'}
+                              </Tag>
+                              {(autoBlockTask.error || autoBlockTask.output?.message) && <Typography.Text type={autoBlockTask.status === 'failed' ? 'danger' : 'secondary'}>{autoBlockTask.error || autoBlockTask.output?.message}</Typography.Text>}
+                            </Space>
+                          </Descriptions.Item>}
                           <Descriptions.Item label="处置描述" span={2}>{selected.response_note || '-'}</Descriptions.Item>
                         </Descriptions>
                       </div>
@@ -1256,10 +1316,40 @@ export default function AlertWorkbench({
           onValuesChange={(changed) => {
             if (changed.status === 'false_positive') transitionForm.setFieldsValue({ closure_action: 'false_positive' });
             if (changed.status === 'ignored') transitionForm.setFieldsValue({ closure_action: 'ignore' });
+            if (changed.status && changed.status !== 'disposed') transitionForm.setFieldsValue({ auto_block: false });
           }}
-          onFinish={(values) => {
+          onFinish={async (values) => {
             if (values.status === 'disposed' && transitionState?.mode === 'batch' && !transitionDisposalAction) {
               message.error('批量流转到已处置时，所选告警的处置动作必须一致');
+              return;
+            }
+            if (values.auto_block) {
+              if (transitionState?.mode !== 'single' || values.block_device_ids?.length !== 1) {
+                message.error('一键联动仅支持单条告警、单个封禁设备');
+                return;
+              }
+              if (!blockDevices.find((item) => item.id === values.block_device_ids[0])?.has_block_script) {
+                message.error('所选设备尚未配置联动封堵脚本');
+                return;
+              }
+              try {
+                const alert = transitionState.alerts[0];
+                const detail = (await api.get<Alert>(`/api/alerts/${alert.id}`)).data;
+                if (!detail.disposal_ip) {
+                  message.error('告警没有可用的处置 IP');
+                  return;
+                }
+                const device = blockDevices.find((item) => item.id === values.block_device_ids[0]);
+                Modal.confirm({
+                  title: '确认执行真实设备封堵？',
+                  content: `将由「${device?.name || '所选设备'}」对 IP ${detail.disposal_ip} 执行自定义脚本。白名单标签不会自动移除，但可能影响该 IP 的正常业务。确认已核对目标和设备后再执行；结果未知时不会自动重试。`,
+                  okText: '确认联动封堵',
+                  okButtonProps: { danger: true },
+                  onOk: () => transition.mutate(serializeTransitionValues(values)),
+                });
+              } catch (error: any) {
+                message.error(error?.response?.data?.detail || '读取告警详情失败，未发起封堵');
+              }
               return;
             }
             transition.mutate(serializeTransitionValues(values));
@@ -1301,11 +1391,23 @@ export default function AlertWorkbench({
           {needsBlockFields && (
             <>
               <Form.Item name="block_device_ids" label="封禁设备" rules={[{ required: true, message: '请选择至少一个封禁设备' }]}>
-                <Select mode="multiple" options={blockDevices.map((item) => ({ value: item.id, label: item.name }))} />
+                <Select mode="multiple" options={blockDevices.map((item) => ({ value: item.id, label: `${item.name}${item.has_block_script ? ' · 可联动' : ''}` }))} />
               </Form.Item>
-              <Form.Item name="block_at" label="封禁时间" rules={[{ required: true, message: '请选择封禁时间' }]}>
-                <DatePicker showTime className="full-width" />
-              </Form.Item>
+              {transitionState?.mode === 'single' && (
+                <Form.Item name="auto_block" label="一键联动封堵" valuePropName="checked">
+                  <Switch checkedChildren="启用" unCheckedChildren="不启用" disabled={!autoBlockCapability?.enabled} />
+                </Form.Item>
+              )}
+              {transitionState?.mode === 'single' && !autoBlockCapability?.enabled && (
+                <Typography.Text type="secondary">需先配置隔离执行器及随机令牌，当前只能手动记录封禁结果。</Typography.Text>
+              )}
+              {watchedAutoBlock ? (
+                <Typography.Text type="warning">将把所选处置 IP 交给设备脚本执行。执行成功后自动闭环；失败或结果未知时保留“处置中”，请勿直接重试。</Typography.Text>
+              ) : (
+                <Form.Item name="block_at" label="封禁时间" rules={[{ required: true, message: '请选择封禁时间' }]}>
+                  <DatePicker showTime className="full-width" />
+                </Form.Item>
+              )}
               {watchedBlockDeviceIds?.length ? (
                 <Typography.Text type="secondary">封禁位置将导出为：{watchedBlockDeviceIds.map((id: number) => deviceName(id)).join('、')}</Typography.Text>
               ) : null}

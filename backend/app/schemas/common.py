@@ -85,6 +85,7 @@ class DeviceOut(OrmModel):
     device_role: str
     browser_assistant_enabled: bool
     browser_url_patterns: list[str]
+    has_block_script: bool = False
 
 
 class AssetCreate(BaseModel):
@@ -251,6 +252,23 @@ class AlertUpdate(BaseModel):
     source_context: dict[str, Any] | None = None
     updated_at: datetime | None = None
     version: int | None = None
+
+
+class AlertListOut(OrmModel):
+    id: int
+    alert_code: str = ""
+    alert_hash: str
+    source_ip: str
+    destination_ip: str
+    event_type: str
+    severity: str
+    status: str
+    current_group: str
+    assignee_id: int | None
+    created_by_id: int | None
+    disposal_action: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class AlertOut(OrmModel):

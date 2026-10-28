@@ -258,7 +258,7 @@ export default function LogParser() {
 
       setIsEditing(false);
       (data.ip_list_alerts || []).forEach((item: { message: string; list: string }) => {
-        if (item.list === 'blacklist') {
+        if (item.list === 'blacklist' || item.list === 'pending') {
           message.error(item.message);
         } else {
           message.warning(item.message);

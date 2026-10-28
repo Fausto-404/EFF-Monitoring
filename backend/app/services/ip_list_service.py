@@ -18,7 +18,7 @@ def get_ip_list_setting(db: Session, workspace_id: int) -> Setting:
             workspace_id=workspace_id,
             user_id=None,
             key="ip_lists",
-            value={"whitelist": [], "blacklist": [], "items": []},
+            value={"whitelist": [], "blacklist": [], "pending_hosts": [], "items": []},
             created_at=now(db, workspace_id),
             updated_at=now(db, workspace_id),
         )
@@ -84,18 +84,20 @@ def normalize_item_rows(rows: list[Any]) -> list[dict[str, Any]]:
             continue
         list_type = row.get("list_type")
         value = str(row.get("value") or "").strip()
-        if list_type not in {"whitelist", "blacklist"} or not value:
+        if list_type not in {"whitelist", "blacklist", "pending"} or not value:
             continue
         try:
             value_type = detect_value_type(value)
         except (ValueError, AddressValueError):
+            continue
+        if list_type == "pending" and value_type != "single":
             continue
         key = (list_type, value)
         if key in seen:
             continue
         seen.add(key)
         current = now().isoformat(sep=" ", timespec="seconds")
-        normalized.append({
+        item = {
             "id": str(row.get("id") or uuid4().hex),
             "list_type": list_type,
             "value": value,
@@ -104,7 +106,14 @@ def normalize_item_rows(rows: list[Any]) -> list[dict[str, Any]]:
             "source": str(row.get("source") or "manual"),
             "created_at": str(row.get("created_at") or current),
             "updated_at": str(row.get("updated_at") or current),
-        })
+        }
+        if list_type == "pending":
+            item.update({
+                "alert_hash": str(row.get("alert_hash") or ""),
+                "matched_whitelist": list(row.get("matched_whitelist") or []),
+                "last_seen_at": str(row.get("last_seen_at") or item["created_at"]),
+            })
+        normalized.append(item)
     return normalized
 
 
@@ -114,8 +123,9 @@ def normalize_value(value: dict[str, Any] | None) -> dict[str, Any]:
         items = normalize_item_rows(data["items"])
     else:
         items = []
-        for list_type in ("whitelist", "blacklist"):
-            for item in normalize_items(data.get(list_type, [])):
+        for list_type in ("whitelist", "blacklist", "pending"):
+            values = data.get("pending_hosts", []) if list_type == "pending" else data.get(list_type, [])
+            for item in normalize_items(values):
                 try:
                     items.append(_item_from_value(item, list_type, source="legacy"))
                 except (ValueError, AddressValueError):
@@ -123,7 +133,8 @@ def normalize_value(value: dict[str, Any] | None) -> dict[str, Any]:
         items = normalize_item_rows(items)
     whitelist = [item["value"] for item in items if item["list_type"] == "whitelist"]
     blacklist = [item["value"] for item in items if item["list_type"] == "blacklist"]
-    return {"whitelist": whitelist, "blacklist": blacklist, "items": items}
+    pending_hosts = [item["value"] for item in items if item["list_type"] == "pending"]
+    return {"whitelist": whitelist, "blacklist": blacklist, "pending_hosts": pending_hosts, "items": items}
 
 
 def set_ip_list_value(db: Session, row: Setting, value: dict[str, Any]) -> None:
@@ -135,6 +146,7 @@ def save_ip_lists(db: Session, actor: User, whitelist: list[Any], blacklist: lis
     row = get_ip_list_setting(db, actor.workspace_id)
     rows = [_item_from_value(item, "whitelist") for item in normalize_items(whitelist)]
     rows.extend(_item_from_value(item, "blacklist") for item in normalize_items(blacklist))
+    rows.extend(item for item in normalize_value(row.value)["items"] if item["list_type"] == "pending")
     set_ip_list_value(db, row, {"items": rows})
     write_audit(
         db,
@@ -151,14 +163,16 @@ def add_ip_list_item(db: Session, actor: User, payload: dict[str, Any]) -> tuple
     row = get_ip_list_setting(db, actor.workspace_id)
     value = normalize_value(row.value)
     list_type = payload.get("list_type")
-    if list_type not in {"whitelist", "blacklist"}:
-        raise ValueError("名单类型仅支持 whitelist 或 blacklist")
+    if list_type not in {"whitelist", "blacklist", "pending"}:
+        raise ValueError("名单类型仅支持 whitelist、blacklist 或 pending")
     item = _item_from_value(
         str(payload.get("value") or ""),
         list_type,
         description=str(payload.get("description") or ""),
         source=str(payload.get("source") or "manual"),
     )
+    if list_type == "pending" and item["value_type"] != "single":
+        raise ValueError("待排查主机名单只支持单 IP")
     exists = any(existing["list_type"] == item["list_type"] and existing["value"] == item["value"] for existing in value["items"])
     if not exists:
         value["items"].append(item)
@@ -177,10 +191,12 @@ def update_ip_list_item(db: Session, actor: User, item_id: str, payload: dict[st
     if not target:
         raise KeyError("名单项不存在")
     list_type = payload.get("list_type", target["list_type"])
-    if list_type not in {"whitelist", "blacklist"}:
-        raise ValueError("名单类型仅支持 whitelist 或 blacklist")
+    if list_type not in {"whitelist", "blacklist", "pending"}:
+        raise ValueError("名单类型仅支持 whitelist、blacklist 或 pending")
     text = str(payload.get("value", target["value"]) or "").strip()
     value_type = detect_value_type(text)
+    if list_type == "pending" and value_type != "single":
+        raise ValueError("待排查主机名单只支持单 IP")
     duplicate = any(item["id"] != item_id and item["list_type"] == list_type and item["value"] == text for item in value["items"])
     if duplicate:
         raise ValueError("名单项已存在")
@@ -255,12 +271,29 @@ def block_ip(
     blacklist = normalize_items(value.get("blacklist", []))
 
     matched_whitelist = [item for item in whitelist if is_ip_in_list(ip, [item])]
-    removed_whitelist = [item for item in matched_whitelist if item == ip]
-    if removed_whitelist:
-        value["items"] = [
-            item for item in value["items"]
-            if not (item["list_type"] == "whitelist" and item["value"] in removed_whitelist)
-        ]
+    if matched_whitelist:
+        existing = next((item for item in value["items"] if item["list_type"] == "pending" and item["value"] == ip), None)
+        created = existing is None
+        if created:
+            existing = _item_from_value(ip, "pending", description=reason, source="alert_flow")
+            value["items"].append(existing)
+        existing["alert_hash"] = alert.alert_hash if alert else ""
+        existing["matched_whitelist"] = matched_whitelist
+        existing["last_seen_at"] = now(db, actor.workspace_id).isoformat(sep=" ", timespec="seconds")
+        set_ip_list_value(db, row, value)
+        detail = {
+            "ip": ip, "alert_hash": existing["alert_hash"], "reason": reason,
+            "matched_whitelist": matched_whitelist, "created": created,
+        }
+        write_audit(db, actor, "ip_lists.pending_add", "alert" if alert else "setting", alert.id if alert else "ip_lists", detail)
+        if created:
+            notify_all(
+                db, actor.workspace_id,
+                f"{ip} 疑似失陷，已加入待排查主机名单",
+                f"{ip} 命中白名单（{', '.join(matched_whitelist)}），封禁处置后已加入待排查主机名单，原白名单保持不变。{reason}",
+                actor=actor, alert=alert, message_type="ip_list", payload=detail,
+            )
+        return {"blocked": False, "was_whitelisted": True, "pending": True, "created": created}
 
     added_blacklist = False
     if ip not in blacklist:
@@ -273,22 +306,10 @@ def block_ip(
         "alert_hash": alert.alert_hash if alert else "",
         "reason": reason,
         "added_blacklist": added_blacklist,
-        "was_whitelisted": bool(matched_whitelist),
-        "removed_whitelist": removed_whitelist,
-        "matched_whitelist": matched_whitelist,
+        "was_whitelisted": False,
+        "removed_whitelist": [],
+        "matched_whitelist": [],
     }
     write_audit(db, actor, "ip_lists.blacklist_add", "alert" if alert else "setting", alert.id if alert else "ip_lists", detail)
 
-    if matched_whitelist:
-        notify_all(
-            db,
-            actor.workspace_id,
-            f"{ip} 疑似失陷，已从白名单移至黑名单",
-            f"{ip} 命中白名单，由于关联告警处置动作，已将其移除并加入黑名单。{reason}",
-            actor=actor,
-            alert=alert,
-            message_type="ip_list",
-            payload=detail,
-        )
-
-    return {"blocked": added_blacklist, "was_whitelisted": bool(matched_whitelist), "removed_whitelist": removed_whitelist}
+    return {"blocked": added_blacklist, "was_whitelisted": False, "pending": False, "removed_whitelist": []}

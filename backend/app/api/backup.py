@@ -1,14 +1,20 @@
 import json
-from datetime import datetime
-from typing import Any
+import logging
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Literal
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
+from jose import jwt
 from sqlalchemy import DateTime, inspect, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.api.deps import has_role
 from app.core.settings import get_settings
+from app.core.security import decode_access_token
 from app.core.timezone import now
 from app.models.database import get_db
 from app.models.entities import (
@@ -22,6 +28,7 @@ from app.models.entities import (
     Asset,
     AssetSegment,
     AuditLog,
+    BackupJob,
     Device,
     Message,
     ParseRule,
@@ -37,6 +44,7 @@ from app.models.entities import (
 from app.services.audit_service import write_audit
 
 router = APIRouter(prefix="/backup", tags=["backup"])
+logger = logging.getLogger(__name__)
 
 BACKUP_FORMAT = "eff-monitoring.backup.v1"
 
@@ -286,6 +294,132 @@ def _restore_model_rows(db: Session, model, rows: list[dict[str, Any]], user: Us
             pass
 
     return {"created": created, "updated": updated, "skipped": skipped}
+
+
+def _backup_job_out(job: BackupJob) -> dict[str, Any]:
+    return {
+        "id": job.id,
+        "status": job.status,
+        "current_table": job.current_table,
+        "processed_rows": job.processed_rows,
+        "total_rows": job.total_rows,
+        "bytes_written": job.bytes_written,
+        "filename": job.filename,
+        "error": job.error,
+        "created_at": job.created_at,
+        "completed_at": job.completed_at,
+    }
+
+
+@router.post("/jobs", status_code=202)
+def create_backup_job(db: Session = Depends(get_db), user: User = Depends(require_admin)):
+    active = db.query(BackupJob.id).filter(
+        BackupJob.workspace_id == user.workspace_id,
+        BackupJob.status.in_(("queued", "running")),
+    ).first()
+    if active:
+        raise HTTPException(status_code=409, detail="当前工作区已有备份任务正在运行")
+    job = BackupJob(workspace_id=user.workspace_id, actor_id=user.id, status="queued")
+    db.add(job)
+    db.flush()
+    write_audit(db, user, "backup.job_create", "backup", str(job.id), {})
+    db.commit()
+    db.refresh(job)
+    return _backup_job_out(job)
+
+
+@router.get("/jobs")
+def list_backup_jobs(
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: Literal["queued", "running", "success", "failed"] | None = Query(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_admin),
+):
+    query = db.query(BackupJob).filter(BackupJob.workspace_id == user.workspace_id)
+    active = query.filter(BackupJob.status.in_(("queued", "running"))).order_by(BackupJob.id.desc()).first()
+    if status:
+        query = query.filter(BackupJob.status == status)
+    jobs = query.order_by(BackupJob.id.desc()).offset(offset).limit(limit).all()
+    return {"items": [_backup_job_out(job) for job in jobs], "total": query.count(), "active_job": _backup_job_out(active) if active else None}
+
+
+@router.get("/jobs/{job_id}")
+def get_backup_job(job_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin)):
+    job = db.query(BackupJob).filter(BackupJob.id == job_id, BackupJob.workspace_id == user.workspace_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="备份任务不存在")
+    return _backup_job_out(job)
+
+
+@router.delete("/jobs/{job_id}")
+def delete_backup_job(job_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin)):
+    job = db.query(BackupJob).filter(
+        BackupJob.id == job_id, BackupJob.workspace_id == user.workspace_id,
+    ).with_for_update().first()
+    if not job:
+        raise HTTPException(status_code=404, detail="备份任务不存在")
+    if job.status in ("queued", "running"):
+        raise HTTPException(status_code=409, detail="运行中的备份任务不能删除，请等待任务结束")
+
+    # The on-disk name is derived from the scoped database ID, never from a user-supplied filename.
+    path = Path(get_settings().backup_dir).resolve() / f"backup-{job.id}.json"
+    pending = path.with_name(f"{path.name}.deleting-{uuid4().hex}")
+    moved = False
+    try:
+        if path.exists() or path.is_symlink():
+            path.rename(pending)
+            moved = True
+        write_audit(db, user, "backup.job_delete", "backup", str(job.id), {
+            "status": job.status, "filename": job.filename, "bytes_written": job.bytes_written,
+        })
+        db.delete(job)
+        db.commit()
+    except Exception:
+        db.rollback()
+        if moved:
+            pending.rename(path)
+        raise
+
+    cleanup_failed = False
+    if moved:
+        try:
+            pending.unlink()
+        except OSError:
+            cleanup_failed = True
+            logger.exception("Backup file cleanup failed after deleting job %s", job_id)
+    return {"deleted": job_id, "file_cleanup_failed": cleanup_failed}
+
+
+@router.get("/jobs/{job_id}/download")
+def download_backup_job(job_id: int, ticket: str = Query(...), db: Session = Depends(get_db)):
+    claims = decode_access_token(ticket)
+    if not claims or claims.get("scope") != "backup_download" or claims.get("job_id") != job_id:
+        raise HTTPException(status_code=403, detail="下载凭证无效或已过期")
+    user = db.get(User, int(claims["sub"]))
+    if not user or not user.is_active or not has_role(user, "admin"):
+        raise HTTPException(status_code=403, detail="无权下载备份")
+    job = db.query(BackupJob).filter(BackupJob.id == job_id, BackupJob.workspace_id == user.workspace_id).first()
+    if not job or job.status != "success":
+        raise HTTPException(status_code=404, detail="备份文件不存在或尚未生成")
+    path = Path(get_settings().backup_dir).resolve() / f"backup-{job.id}.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="备份文件已清理")
+    return FileResponse(path, media_type="application/json", filename=job.filename or path.name, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/jobs/{job_id}/ticket")
+def create_backup_download_ticket(job_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin)):
+    job = db.query(BackupJob).filter(BackupJob.id == job_id, BackupJob.workspace_id == user.workspace_id).first()
+    if not job or job.status != "success":
+        raise HTTPException(status_code=404, detail="备份文件不存在或尚未生成")
+    cfg = get_settings()
+    token = jwt.encode(
+        {"sub": str(user.id), "scope": "backup_download", "job_id": job.id,
+         "exp": datetime.now(timezone.utc) + timedelta(seconds=60)},
+        cfg.jwt_secret, algorithm=cfg.jwt_algorithm,
+    )
+    return {"ticket": token}
 
 
 @router.get("/export")

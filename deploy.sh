@@ -55,26 +55,33 @@ command -v docker >/dev/null 2>&1 || { echo "未找到 Docker，请先安装 Doc
 docker info >/dev/null 2>&1 || { echo "Docker 服务未运行，请先启动 Docker。" >&2; exit 1; }
 
 if docker compose version >/dev/null 2>&1; then
-  compose() { docker compose -p eff-monitoring-v2-2-1 "$@"; }
+  COMPOSE_V2=1
+  compose() { docker compose -p eff-monitoring-v2-2-2 "$@"; }
 elif command -v docker-compose >/dev/null 2>&1; then
-  compose() { docker-compose -p eff-monitoring-v2-2-1 "$@"; }
+  COMPOSE_V2=0
+  compose() { docker-compose -p eff-monitoring-v2-2-2 "$@"; }
 else
   echo "未找到 Docker Compose，请安装 Compose v2 或 docker-compose。" >&2
   exit 1
 fi
 
 if [ -z "$OFFLINE_FILE" ]; then
-  if [ -f "$ROOT_DIR/eff-monitoring-v2.2.1-images.tar" ]; then
-    OFFLINE_FILE="$ROOT_DIR/eff-monitoring-v2.2.1-images.tar"
-  elif [ -f "$ROOT_DIR/../eff-monitoring-v2.2.1-images.tar" ]; then
-    OFFLINE_FILE="$ROOT_DIR/../eff-monitoring-v2.2.1-images.tar"
+  case "$(uname -m)" in
+    arm64|aarch64) ARCH_SUFFIX=arm ;;
+    amd64|x86_64) ARCH_SUFFIX=amd ;;
+    *) echo "不支持的 CPU 架构：$(uname -m)" >&2; exit 1 ;;
+  esac
+  if [ -f "$ROOT_DIR/eff-monitoring-v2.2.2-images-${ARCH_SUFFIX}.tar" ]; then
+    OFFLINE_FILE="$ROOT_DIR/eff-monitoring-v2.2.2-images-${ARCH_SUFFIX}.tar"
+  elif [ -f "$ROOT_DIR/../eff-monitoring-v2.2.2-images-${ARCH_SUFFIX}.tar" ]; then
+    OFFLINE_FILE="$ROOT_DIR/../eff-monitoring-v2.2.2-images-${ARCH_SUFFIX}.tar"
   else
-    OFFLINE_FILE="$ROOT_DIR/eff-monitoring-v2.2.1-images.tar"
+    OFFLINE_FILE="$ROOT_DIR/eff-monitoring-v2.2.2-images-${ARCH_SUFFIX}.tar"
   fi
 fi
 [ -f "$OFFLINE_FILE" ] || {
   echo "未找到离线镜像包：$OFFLINE_FILE" >&2
-  echo "请将 eff-monitoring-v2.2.1-images.tar 放到源码目录或其上级版本目录，或使用 --offline 指定路径。" >&2
+  echo "请将对应架构的 v2.2.2 镜像包放到当前目录，或使用 --offline 指定路径。" >&2
   exit 1
 }
 
@@ -177,15 +184,26 @@ docker load -i "$OFFLINE_FILE"
 
 host_arch=$(normalize_arch "$(docker info --format '{{.Architecture}}')")
 api_image=$(sed -n 's/^EFF_API_IMAGE=//p' .env | tail -1)
-[ -n "$api_image" ] || api_image=eff-monitoring-api:v2.2.1
-image_arch=$(normalize_arch "$(docker image inspect "$api_image" --format '{{.Architecture}}' 2>/dev/null || true)")
-if [ -z "$image_arch" ] || [ "$host_arch" != "$image_arch" ]; then
-  echo "CPU 架构不兼容：当前 Docker=${host_arch}，离线包=${image_arch}。" >&2
-  echo "请准备与目标机器架构匹配的离线镜像包。" >&2
-  exit 1
-fi
+[ -n "$api_image" ] || api_image=eff-monitoring-api:v2.2.2
+worker_image=$(sed -n 's/^EFF_WORKER_IMAGE=//p' .env | tail -1)
+[ -n "$worker_image" ] || worker_image=eff-monitoring-worker:v2.2.2
+web_image=$(sed -n 's/^EFF_WEB_IMAGE=//p' .env | tail -1)
+[ -n "$web_image" ] || web_image=eff-monitoring-web:v2.2.2
+for image in postgres:17-alpine redis:7-alpine "$api_image" "$worker_image" "$web_image"; do
+  image_arch=$(docker image inspect "$image" --format '{{.Architecture}}' 2>/dev/null || true)
+  [ -n "$image_arch" ] || { echo "离线包缺少镜像：$image" >&2; exit 1; }
+  image_arch=$(normalize_arch "$image_arch")
+  if [ "$host_arch" != "$image_arch" ]; then
+    echo "CPU 架构不兼容：${image} 是 ${image_arch}，当前 Docker 是 ${host_arch}。" >&2
+    exit 1
+  fi
+done
 
-compose up -d --no-build
+if [ "$COMPOSE_V2" -eq 1 ]; then
+  compose up -d --no-build --pull never
+else
+  compose up -d --no-build
+fi
 
 echo "等待服务健康检查..."
 i=0
