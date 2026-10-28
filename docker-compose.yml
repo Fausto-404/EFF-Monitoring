@@ -25,6 +25,17 @@ services:
       retries: 5
     restart: unless-stopped
 
+  eff-block-token-init:
+    image: ${EFF_API_IMAGE:-eff-monitoring-api:v2.2.2}
+    environment:
+      BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
+      BLOCK_RUNNER_TOKEN_FILE: /run/eff-block-token/token
+    volumes:
+      - eff-block-token-data:/run/eff-block-token
+    entrypoint: ["sh", "/app/docker/block-token-init.sh"]
+    command: []
+    restart: "no"
+
   eff-api:
     image: ${EFF_API_IMAGE:-eff-monitoring-api:v2.2.2}
     build:
@@ -33,16 +44,19 @@ services:
     env_file: .env
     volumes:
       - eff-backup-data:/app/backup_files
+      - eff-block-token-data:/run/eff-block-token:ro
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://eff:${POSTGRES_PASSWORD:-eff_password}@eff-postgres:5432/eff_monitoring}
       REDIS_URL: ${REDIS_URL:-redis://eff-redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
+      BLOCK_RUNNER_TOKEN_FILE: /run/eff-block-token/token
     ports:
       - "${EFF_API_PORT:-8000}:8000"
     depends_on:
       - eff-postgres
       - eff-redis
+      - eff-block-token-init
     restart: unless-stopped
 
   eff-worker:
@@ -53,24 +67,29 @@ services:
     env_file: .env
     volumes:
       - eff-backup-data:/app/backup_files
+      - eff-block-token-data:/run/eff-block-token:ro
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://eff:${POSTGRES_PASSWORD:-eff_password}@eff-postgres:5432/eff_monitoring}
       REDIS_URL: ${REDIS_URL:-redis://eff-redis:6379/0}
       BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
+      BLOCK_RUNNER_TOKEN_FILE: /run/eff-block-token/token
     command: ["python", "-m", "app.workers.worker"]
     networks: [default, block-egress]
     depends_on:
       - eff-api
+      - eff-block-token-init
     restart: unless-stopped
 
   eff-block-runner:
-    profiles: ["auto-block"]
     image: ${EFF_API_IMAGE:-eff-monitoring-api:v2.2.2}
     environment:
       BLOCK_RUNNER_TOKEN: ${BLOCK_RUNNER_TOKEN:-}
+      BLOCK_RUNNER_TOKEN_FILE: /run/eff-block-token/token
       BLOCK_DEVICE_TOKEN: ${BLOCK_DEVICE_TOKEN:-}
       BLOCK_DEVICE_TOKENS_JSON: ${BLOCK_DEVICE_TOKENS_JSON:-}
     command: ["uvicorn", "app.block_runner:app", "--host", "0.0.0.0", "--port", "8090"]
+    volumes:
+      - eff-block-token-data:/run/eff-block-token:ro
     user: "65534:65534"
     read_only: true
     tmpfs:
@@ -81,6 +100,13 @@ services:
     mem_limit: 512m
     cpus: 1.0
     networks: [block-egress]
+    depends_on:
+      - eff-block-token-init
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     restart: unless-stopped
 
   eff-web:
@@ -100,6 +126,7 @@ volumes:
   eff-postgres-data:
   eff-redis-data:
   eff-backup-data:
+  eff-block-token-data:
 
 networks:
   block-egress:

@@ -124,6 +124,8 @@ git clone --depth 1 --branch v2.2.2 https://github.com/Fausto-404/EFF-Monitoring
 
 `install.sh` 会检测 CPU 架构：ARM64 自动下载 `eff-monitoring-v2.2.2-images-arm.tar`，amd64/x86_64 自动下载 `eff-monitoring-v2.2.2-images-amd.tar`，校验 Release 中对应的 SHA-256 文件后导入镜像并自动生成安全密码。默认使用独立的 `eff-monitoring-v2-2-2` Compose 项目及数据卷；从旧版升级前请先导出备份，再在新版中还原。
 
+联动封堵执行器会随服务默认启动，首次部署自动生成并保存独立随机令牌，无需手工设置 `BLOCK_RUNNER_TOKEN`。这只让“一键联动封堵”开关可用；实际封堵仍须选择已配置脚本的设备、手动开启开关并二次确认。
+
 脚本会在启动前检查 Docker、磁盘空间、CPU 架构和端口；默认使用 8000（API）和 8080（前端），端口被占用时会自动选择下一个可用端口，也可以手动指定：
 
 ```bash
@@ -168,6 +170,7 @@ docker compose up -d --build
 ```
 
 该方式会根据 `Dockerfile.backend`、`Dockerfile.frontend` 和 `docker-compose.yml` 构建 API、Worker 和前端镜像；首次使用前必须完成 `.env` 配置。
+直接使用 Compose 构建也会自动生成联动执行器令牌并启动隔离执行器，无需额外指定 profile。
 
 发布制作者可按目标机器架构制作离线包：
 

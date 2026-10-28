@@ -221,11 +221,29 @@ if ! curl -fsS --max-time 5 "http://localhost:${API_PORT}/healthz" >/dev/null 2>
   exit 1
 fi
 
+echo "等待联动封堵执行器健康检查..."
+i=0
+runner_health=""
+while [ "$i" -lt 30 ]; do
+  runner_id=$(compose ps -q eff-block-runner 2>/dev/null || true)
+  if [ -n "$runner_id" ]; then
+    runner_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$runner_id" 2>/dev/null || true)
+    [ "$runner_health" = healthy ] && break
+  fi
+  i=$((i + 1))
+  sleep 2
+done
+if [ "$runner_health" != healthy ]; then
+  echo "联动封堵执行器未通过健康检查，请查看：docker compose -p eff-monitoring-v2-2-2 logs eff-block-token-init eff-block-runner" >&2
+  exit 1
+fi
+
 echo
 echo "EFF-Monitoring 已启动："
 echo "  前端：http://localhost:${WEB_PORT}"
 echo "  API：http://localhost:${API_PORT}"
 echo "  文档：http://localhost:${API_PORT}/docs"
+echo "  一键联动封堵：已就绪（实际封堵仍需在告警中手动开启并二次确认）"
 echo
 echo "管理员账号：$(sed -n 's/^INITIAL_ADMIN_USERNAME=//p' .env | tail -1)"
 echo "管理员密码：$(sed -n 's/^INITIAL_ADMIN_PASSWORD=//p' .env | tail -1)"

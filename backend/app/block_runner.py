@@ -16,6 +16,13 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="EFF Block Script Runner", docs_url=None, redoc_url=None, openapi_url=None)
 
 
+@app.get("/healthz")
+def healthz():
+    if len(os.environ.get("BLOCK_RUNNER_TOKEN", "")) < 32:
+        raise HTTPException(status_code=503, detail="联动执行器未配置")
+    return {"status": "ok"}
+
+
 class RunRequest(BaseModel):
     script: str = Field(min_length=1, max_length=32768)
     ip: str
