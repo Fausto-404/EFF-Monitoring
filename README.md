@@ -66,6 +66,7 @@ EFF-Monitoring（Efficient Monitoring，高效监控）是一款面向安全运�
 1.2、关联威胁情报、资产等信息
 <img width="2834" height="1530" alt="image" src="https://github.com/user-attachments/assets/b0609e34-f443-411c-8174-e1470a63ce9c" />
 1.3、自定义python脚本一键联动封禁
+<img width="2546" height="1072" alt="image" src="https://github.com/user-attachments/assets/3c9709b7-7809-4f02-ae10-41cf460ed7b0" />
 
 ### 2、Agent自主规划并调用工具
 2.1、具备规划、调用、反思等全链路思考的Agent
