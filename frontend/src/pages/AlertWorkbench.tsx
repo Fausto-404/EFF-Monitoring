@@ -12,6 +12,7 @@ import HelpTip from '../components/HelpTip';
 import CollapsibleBlock from '../components/CollapsibleBlock';
 
 type ColumnWidths = Record<string, number>;
+const SELECTION_COLUMN_WIDTH = 50;
 type AlertSummary = Pick<Alert,
   'id' | 'alert_code' | 'alert_hash' | 'source_ip' | 'destination_ip' |
   'event_type' | 'severity' | 'status' | 'current_group' | 'assignee_id' |
@@ -896,6 +897,23 @@ export default function AlertWorkbench({
     assignee_id: 90,
     actions: 280,
   });
+  const tableHostRef = useRef<HTMLDivElement>(null);
+  const [tableHostWidth, setTableHostWidth] = useState(0);
+
+  useEffect(() => {
+    const host = tableHostRef.current;
+    if (!host) return;
+    const updateWidth = () => setTableHostWidth(Math.ceil(host.getBoundingClientRect().width));
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  const columnsWidth = Object.values(columnWidths).reduce((total, width) => total + width, SELECTION_COLUMN_WIDTH);
+  // Reserve any extra viewport space at the end. Otherwise rc-table puts it into
+  // an earlier column, so shrinking one column can move its handle the wrong way.
+  const spacerWidth = Math.max(0, tableHostWidth - columnsWidth);
 
   const columns = useMemo(
     () => [
@@ -980,6 +998,10 @@ export default function AlertWorkbench({
       }
     ],
     [users, currentUser, isViewer, isAdmin, claim.isPending, release.isPending, remove, columnWidths, onResize, resetWidth]
+  );
+  const tableColumns = useMemo(
+    () => spacerWidth > 0 ? [...columns, { key: 'resize-spacer', title: '', width: spacerWidth, render: () => null }] : columns,
+    [columns, spacerWidth]
   );
 
   const renderHistoryItem = (item: any) => {
@@ -1077,15 +1099,16 @@ export default function AlertWorkbench({
           )}
         </Space>
       </div>
+      <div ref={tableHostRef}>
       <Table
         rowKey="id"
         loading={isLoading}
         dataSource={data}
-        columns={columns}
-        rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+        columns={tableColumns}
+        rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys, columnWidth: SELECTION_COLUMN_WIDTH }}
         className="alert-workbench-table"
         scroll={{
-          x: Math.max(1200, Object.values(columnWidths).reduce((total, width) => total + width, 0) + 32),
+          x: columnsWidth + spacerWidth,
           y: 600,
         }}
         virtual
@@ -1103,6 +1126,7 @@ export default function AlertWorkbench({
           }
         }}
       />
+      </div>
 
       <Drawer open={!!selected} onClose={closeDrawer} width={980} title="告警详情" className="alert-detail-drawer">
         {selected && (
